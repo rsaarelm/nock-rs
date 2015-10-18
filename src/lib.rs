@@ -1,6 +1,9 @@
+#![crate_name="nock"]
+
 #![feature(box_syntax, box_patterns)]
 
 use std::fmt;
+use std::str;
 
 // Nock(a)          *a
 // [a b c]          [a [b c]]
@@ -44,6 +47,16 @@ pub enum Noun {
     Cell(Box<Noun>, Box<Noun>),
 }
 
+impl Noun {
+    pub fn new<T: Into<Noun>>(val: T) -> Noun {
+        val.into()
+    }
+}
+
+impl Into<Noun> for u64 {
+    fn into(self) -> Noun { Noun::Atom(self) }
+}
+
 impl fmt::Display for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -72,6 +85,17 @@ impl fmt::Debug for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self) }
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct ParseNockError;
+
+impl str::FromStr for Noun {
+    type Err = ParseNockError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        unimplemented!();
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Op {
     Wut, // ?
@@ -84,7 +108,7 @@ pub enum Op {
 use Op::*;
 use Noun::*;
 
-fn eval(op: Op, noun: Noun) -> Result<Noun, Noun> {
+pub fn eval(op: Op, noun: Noun) -> Result<Noun, Noun> {
     match (op, noun) {
         (Wut, Cell(_, _)) => Ok(Atom(0)),
         (Wut, Atom(_)) => Ok(Atom(1)),
@@ -116,10 +140,74 @@ fn eval(op: Op, noun: Noun) -> Result<Noun, Noun> {
 
 pub fn nock(noun: Noun) -> Result<Noun, Noun> { eval(Wut, noun) }
 
+/*
+/// Helper macro for defining nouns.
+macro_rules! noun {
+    [[$x:expr, $($xs:expr),+], [$y:expr, $($ys:expr),+]] => { ::nock::Noun::Cell(box noun![$x, $($xs),+], box noun![$y, $($ys),+]) };
+    [[$x:expr, $($xs:expr),+], $y:expr] => { ::nock::Noun::Cell(box noun![$x, $($xs),+], box ::nock::Noun::Atom($y)) };
+    [$x:expr, [$y:expr, $($ys:expr),+]] => { ::nock::Noun::Cell(box ::nock::Noun::Atom($x), box noun![$y, $($ys),+]) };
+    [$x:expr, $y:expr] => { ::nock::Noun::Cell(box ::nock::Noun::Atom($x), box ::nock::Noun::Atom($y)) };
+    [$x:expr, $y:expr, $($ys:expr),+] => { ::nock::Noun::Cell(box ::nock::Noun::Atom($x), box noun![$y, $($ys),+]) };
+    [$x:expr] => { ::nock::Noun::Atom($x) };
+}
+*/
+
+pub fn a(val: u64) -> Noun { Noun::Atom(val) }
+
+macro_rules! n {
+    [$x:expr, $y:expr] => { ::nock::Noun::Cell(box ::nock::Noun::new($x), box ::nock::Noun::new($y)) };
+    [$x:expr, $y:expr, $($ys:expr),+] => { ::nock::Noun::Cell(box ::nock::Noun::new($x), box n![$y, $($ys),+]) };
+}
+
+// Re-export hack for testing macros.
+mod nock {
+    pub use Noun;
+}
+
+#[cfg(test)]
+mod test {
 #[test]
-fn it_works() {
-    println!("{}", Cell(box Atom(1), box Cell(box Atom(2), box Atom(3))));
-    println!("{:?}", eval(Tis, Cell(box Atom(2), box Atom(2))));
-    println!("{:?}", eval(Fas, Cell(box Atom(7), box Cell(box Cell(box Atom(4), box Atom(5)), box Cell(box Atom(6), box Cell(box Atom(14), box Atom(15)))))));
-    assert!(false);
+    fn test_macro() {
+        use super::Noun::*;
+
+        assert_eq!(n![1, 2], Cell(box Atom(1), box Atom(2)));
+        assert_eq!(n![1, n![2, 3]], Cell(box Atom(1), box Cell(box Atom(2), box Atom(3))));
+        assert_eq!(n![1, 2, 3], Cell(box Atom(1), box Cell(box Atom(2), box Atom(3))));
+        assert_eq!(n![n![1, 2], 3], Cell(box Cell(box Atom(1), box Atom(2)), box Atom(3)));
+        assert_eq!(n![n![1, 2], n![3, 4]], Cell(box Cell(box Atom(1), box Atom(2)), box Cell(box Atom(3), box Atom(4))));
+        assert_eq!(n![n![1, 2], n![3, 4], n![5, 6]],
+                   Cell(box Cell(box Atom(1), box Atom(2)),
+                   box Cell(box Cell(box Atom(3), box Atom(4)),
+                   box Cell(box Atom(5), box Atom(6)))));
+    }
+#[test]
+    fn test_eval() {
+        use super::Op::*;
+        use super::{a, eval};
+
+        // Examples from https://github.com/cgyarvin/urbit/blob/master/doc/book/1-nock.markdown
+
+        assert_eq!(eval(Tis, n![0, 0]), Ok(a(0)));
+        assert_eq!(eval(Tis, n![2, 2]), Ok(a(0)));
+        assert_eq!(eval(Tis, n![0, 1]), Ok(a(1)));
+
+        assert_eq!(eval(Fas, n![1, n![n![4, 5], n![6, 14, 15]]]), Ok(n![n![4, 5], n![6, 14, 15]]));
+        assert_eq!(eval(Fas, n![2, n![n![4, 5], n![6, 14, 15]]]), Ok(n![4, 5]));
+        assert_eq!(eval(Fas, n![3, n![n![4, 5], n![6, 14, 15]]]), Ok(n![6, 14, 15]));
+        assert_eq!(eval(Fas, n![7, n![n![4, 5], n![6, 14, 15]]]), Ok(n![14, 15]));
+    }
+
+#[test]
+    fn test_parse() {
+        use super::Noun;
+
+        assert!("".parse::<Noun>().is_err());
+        assert!("[]".parse::<Noun>().is_err());
+        assert!("[1]".parse::<Noun>().is_err());
+        assert!("[x y]".parse::<Noun>().is_err());
+        assert_eq!("[1 2]".parse::<Noun>(), Ok(n![1, 2]));
+        assert_eq!("[1 2 3]".parse::<Noun>(), Ok(n![1, 2, 3]));
+        assert_eq!("[[1 2] 3]".parse::<Noun>(), Ok(n![n![1, 2], 3]));
+        assert_eq!("[1 [2 3]]".parse::<Noun>(), Ok(n![1, n![2, 3]]));
+    }
 }
