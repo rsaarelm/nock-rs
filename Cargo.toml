@@ -1,0 +1,8 @@
+[package]
+name = "nock"
+version = "0.0.0"
+authors = ["Risto Saarelma <risto.saarelma@iki.fi>"]
+keywords = ["vm"]
+description = "A stateless virtual machine"
+repository = "https://github.com/rsaarelm/nock-rs"
+license = "MIT"
