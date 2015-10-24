@@ -128,7 +128,6 @@ pub type NockResult = Result<Noun, Bottom>;
 // *a               *a
 
 fn wut(noun: Noun) -> NockResult {
-    info!("?{}", noun);
     match noun {
         Cell(_, _) => Ok(Atom(0)),
         Atom(_) => Ok(Atom(1)),
@@ -136,7 +135,6 @@ fn wut(noun: Noun) -> NockResult {
 }
 
 fn lus(noun: Noun) -> NockResult {
-    info!("+{}", noun);
     match noun {
         Atom(n) => Ok(Atom(n + 1)),
         _ => Err(Bottom),
@@ -144,7 +142,6 @@ fn lus(noun: Noun) -> NockResult {
 }
 
 fn tis(noun: Noun) -> NockResult {
-    info!("={}", noun);
     match noun {
         Cell(a, b) => Ok(Atom(if a == b {
             0
@@ -156,7 +153,6 @@ fn tis(noun: Noun) -> NockResult {
 }
 
 fn fas(noun: Noun) -> NockResult {
-    info!("/{}", noun);
     match noun {
         Cell(box Atom(1), box a) => Ok(a),
         Cell(box Atom(2), box Cell(box a, _)) => Ok(a),
