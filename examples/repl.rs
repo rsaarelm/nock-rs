@@ -12,14 +12,12 @@ fn main() {
         match io::stdin().read_line(&mut input) {
             Ok(_) => {
                 match parse(&input) {
-                    Ok(noun) =>
-                        println!("{}", noun),
-                    Err(_) =>
-                        println!("Syntax error"),
+                    Ok(noun) => println!("{}", noun),
+                    Err(_) => println!("Syntax error"),
                 }
             }
 
-            Err(_) => break
+            Err(_) => break,
         }
     }
 }
