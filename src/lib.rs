@@ -130,15 +130,15 @@ pub type NockResult = Result<Noun, Bottom>;
 fn wut(noun: Noun) -> NockResult {
     info!("?{}", noun);
     match noun {
-        Cell(_, _) => Ok(a(0)),
-        Atom(_) => Ok(a(1)),
+        Cell(_, _) => Ok(Atom(0)),
+        Atom(_) => Ok(Atom(1)),
     }
 }
 
 fn lus(noun: Noun) -> NockResult {
     info!("+{}", noun);
     match noun {
-        Atom(n) => Ok(a(n + 1)),
+        Atom(n) => Ok(Atom(n + 1)),
         _ => Err(Bottom),
     }
 }
@@ -237,10 +237,6 @@ pub fn tar(noun: Noun) -> NockResult {
     }
 }
 
-
-pub fn a(val: u64) -> Noun {
-    Noun::Atom(val)
-}
 
 /// Parse tokens
 enum Tok {
@@ -461,15 +457,14 @@ mod test {
 
     #[test]
     fn test_from_iter() {
-        use super::Noun;
-        use super::a;
+        use super::Noun::{self, Atom};
 
-        assert_eq!(a(1), vec![a(1)].into_iter().collect::<Noun>());
-        assert_eq!(n![1, 2], vec![a(1), a(2)].into_iter().collect::<Noun>());
+        assert_eq!(Atom(1), vec![Atom(1)].into_iter().collect::<Noun>());
+        assert_eq!(n![1, 2], vec![Atom(1), Atom(2)].into_iter().collect::<Noun>());
         assert_eq!(n![1, 2, 3],
-                   vec![a(1), a(2), a(3)].into_iter().collect::<Noun>());
+                   vec![Atom(1), Atom(2), Atom(3)].into_iter().collect::<Noun>());
         assert_eq!(n![1, n![2, 3]],
-                   vec![a(1), n![2, 3]].into_iter().collect::<Noun>());
+                   vec![Atom(1), n![2, 3]].into_iter().collect::<Noun>());
     }
 
     #[test]
