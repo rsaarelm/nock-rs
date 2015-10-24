@@ -26,6 +26,17 @@ impl Into<Noun> for u64 {
     fn into(self) -> Noun { Noun::Atom(self) }
 }
 
+impl iter::FromIterator<Noun> for Noun {
+    fn from_iter<T>(iterator: T) -> Self where T: IntoIterator<Item=Noun> {
+        let mut v: Vec<Noun> = iterator.into_iter().collect();
+        v.reverse();
+
+        v.into_iter().fold(
+            None, |acc, i| acc.map_or_else(|| Some(i.clone()), |a| Some(Noun::Cell(box i.clone(), box a))))
+            .expect("Can't make noun from empty list")
+    }
+}
+
 impl fmt::Display for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -379,6 +390,18 @@ mod test {
                    box Cell(box Cell(box Atom(3), box Atom(4)),
                    box Cell(box Atom(5), box Atom(6)))));
     }
+
+#[test]
+    fn test_from_iter() {
+        use super::Noun;
+        use super::a;
+
+        assert_eq!(a(1), vec![a(1)].into_iter().collect::<Noun>());
+        assert_eq!(n![1, 2], vec![a(1), a(2)].into_iter().collect::<Noun>());
+        assert_eq!(n![1, 2, 3], vec![a(1), a(2), a(3)].into_iter().collect::<Noun>());
+        assert_eq!(n![1, n![2, 3]], vec![a(1), n![2, 3]].into_iter().collect::<Noun>());
+    }
+
 #[test]
     fn test_eval() {
         use super::Op::*;
