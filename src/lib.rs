@@ -482,7 +482,22 @@ mod test {
 
         produces("+4", "5");
 
+        // Operator 0: Axis
         produces("*[[19 42] [0 3] 0 2]", "[42 19]");
+        produces("*[[19 42] 0 3]", "42");
+
+        // Operator 1: Just
+        produces("*[42 1 57]", "57");
+
+        // Operator 2: Fire
+        produces("*[[[40 43] [4 0 1]] [2 [0 4] [0 3]]]", "41");
+        produces("*[[[40 43] [4 0 1]] [2 [0 5] [0 3]]]", "44");
+
+        // Operator 6: If
+        produces("*[[40 43] [6 [3 0 1] [4 0 2] [4 0 1]]]", "41");
+
+        // Operator 7: Compose
+        produces("*[[42 44] [7 [4 0 3] [3 0 1]]]", "1");
 
         fails("+[1 2]");
         fails("/[3 8]");
