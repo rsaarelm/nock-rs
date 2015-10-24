@@ -471,10 +471,14 @@ mod test {
     }
 
     #[test]
-    fn test_eval() {
+    fn test_pseudocode() {
+        produces("?[5 8]", "0");
+        produces("?10", "1");
+
         produces("=[0 0]", "0");
         produces("=[2 2]", "0");
         produces("=[0 1]", "1");
+        fails("=3");
 
         produces("/[1 [97 2] [1 42 0]]", "[[97 2] 1 42 0]");
         produces("/[2 [97 2] [1 42 0]]", "[97 2]");
@@ -482,9 +486,14 @@ mod test {
         produces("/[3 [97 2] [1 42 0]]", "[1 42 0]");
         produces("/[6 [97 2] [1 42 0]]", "1");
         produces("/[7 [97 2] [1 42 0]]", "[42 0]");
+        fails("/[3 8]");
 
         produces("+4", "5");
+        fails("+[1 2]");
+    }
 
+    #[test]
+    fn test_nock() {
         // Operator 0: Axis
         produces("*[[19 42] [0 3] 0 2]", "[42 19]");
         produces("*[[19 42] 0 3]", "42");
@@ -495,6 +504,18 @@ mod test {
         // Operator 2: Fire
         produces("*[[[40 43] [4 0 1]] [2 [0 4] [0 3]]]", "41");
         produces("*[[[40 43] [4 0 1]] [2 [0 5] [0 3]]]", "44");
+        produces("*[77 [2 [1 42] [1 1 153 218]]]", "[153 218]");
+
+        // Operator 3: Depth
+        produces("*[1 3 0 1]", "1");
+        produces("*[[2 3] 3 0 1]", "0");
+
+        // Operator 4: Bump
+        produces("*[57 4 0 1]", "58");
+
+        // Operator 5: Same
+        produces("*[[1 1] 5 0 1]", "0");
+        produces("*[[1 2] 5 0 1]", "1");
 
         // Operator 6: If
         produces("*[[40 43] [6 [3 0 1] [4 0 2] [4 0 1]]]", "41");
@@ -502,8 +523,11 @@ mod test {
         // Operator 7: Compose
         produces("*[[42 44] [7 [4 0 3] [3 0 1]]]", "1");
 
-        fails("+[1 2]");
-        fails("/[3 8]");
+        // Operator 8: Push
+
+        // Operator 9: Call
+
+        // Operator 10: Hint
     }
 
     #[test]
