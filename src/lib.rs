@@ -3,7 +3,6 @@
 #![feature(box_syntax, box_patterns)]
 
 use std::fmt;
-use std::str;
 use std::iter;
 
 /// A Nock noun, the basic unit of representation.
@@ -65,17 +64,6 @@ impl fmt::Debug for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self) }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct ParseNockError;
-
-impl str::FromStr for Noun {
-    type Err = ParseNockError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        unimplemented!();
-    }
-}
-
 /// Macro for noun literals.
 ///
 /// Rust n![1, 2, 3] corresponds to Nock [1 2 3]
@@ -111,14 +99,6 @@ impl fmt::Display for Op {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Formula(pub Op, pub Noun);
-
-impl str::FromStr for Formula {
-    type Err = ParseNockError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        unimplemented!();
-    }
-}
 
 impl fmt::Display for Formula {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -273,7 +253,7 @@ struct Tokenizer<I: Iterator> {
 }
 
 impl<I: Iterator<Item=char>> Tokenizer<I> {
-    pub fn new(mut input: I) -> Tokenizer<I> {
+    pub fn new(input: I) -> Tokenizer<I> {
         Tokenizer {
             input: input.peekable(),
         }
@@ -341,7 +321,15 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
     }
 }
 
-fn parse<I: Iterator<Item=Tok>>(input: &mut I) -> Result<Noun, ()> {
+pub fn parse(input: &str) -> Result<Noun, ()> {
+    parse_tokens(&mut Tokenizer::new(input.chars()))
+}
+
+/// Parses either a noun or a formula.
+///
+/// Formulas will be evaluated on the spot. Failure to evaluate the formula
+/// will result an error.
+fn parse_tokens<I: Iterator<Item=Tok>>(input: &mut I) -> Result<Noun, ()> {
     use Tok::*;
     match input.next() {
         Some(Sel) => parse_cell(input),
@@ -351,8 +339,33 @@ fn parse<I: Iterator<Item=Tok>>(input: &mut I) -> Result<Noun, ()> {
     }
 }
 
+/// Parses a cell, must have at least two nouns inside.
 fn parse_cell<I: Iterator<Item=Tok>>(input: &mut I) -> Result<Noun, ()> {
-    unimplemented!();
+    let mut elts = Vec::new();
+    // Must have at least two formulas/nouns inside.
+    elts.push(try!(parse_tokens(input)));
+    elts.push(try!(parse_tokens(input)));
+    // Then can have zero to many further tail nouns.
+    loop {
+        match parse_cell_tail(input) {
+            Some(n) => elts.push(try!(n)),
+            None => break,
+        }
+    }
+
+    Ok(elts.into_iter().collect())
+}
+
+/// Parses either an end of cell or a further element.
+fn parse_cell_tail<I: Iterator<Item=Tok>>(input: &mut I) -> Option<Result<Noun, ()>> {
+    use Tok::*;
+    match input.next() {
+        Some(Ser) => None,
+        Some(Sel) => Some(parse_cell(input)),
+        Some(Op(op)) => Some(parse_formula(op, input)),
+        Some(Atom(n)) => Some(Ok(Noun::Atom(n))),
+        _ => Some(Err(()))
+    }
 }
 
 fn parse_noun<I: Iterator<Item=Tok>>(input: &mut I) -> Result<Noun, ()> {
@@ -422,24 +435,15 @@ mod test {
 
 #[test]
     fn test_parse_noun() {
-        use super::Noun;
+        use super::parse;
 
-        assert!("".parse::<Noun>().is_err());
-        assert!("[]".parse::<Noun>().is_err());
-        assert!("[1]".parse::<Noun>().is_err());
-        assert!("[x y]".parse::<Noun>().is_err());
-        assert_eq!("[1 2]".parse::<Noun>(), Ok(n![1, 2]));
-        assert_eq!("[1 2 3]".parse::<Noun>(), Ok(n![1, 2, 3]));
-        assert_eq!("[[1 2] 3]".parse::<Noun>(), Ok(n![n![1, 2], 3]));
-        assert_eq!("[1 [2 3]]".parse::<Noun>(), Ok(n![1, n![2, 3]]));
-
-    }
-
-#[test]
-    fn test_parse_formula() {
-        use super::Op::*;
-        use super::Formula;
-
-        assert_eq!("+[1 2]".parse::<Formula>(), Ok(Formula(Lus, n![1, 2])));
+        assert!(parse("").is_err());
+        assert!(parse("[]").is_err());
+        assert!(parse("[1]").is_err());
+        assert!(parse("[x y]").is_err());
+        assert_eq!(parse("[1 2]"), Ok(n![1, 2]));
+        assert_eq!(parse("[1 2 3]"), Ok(n![1, 2, 3]));
+        assert_eq!(parse("[[1 2] 3]"), Ok(n![n![1, 2], 3]));
+        assert_eq!(parse("[1 [2 3]]"), Ok(n![1, n![2, 3]]));
     }
 }
