@@ -212,18 +212,23 @@ pub fn tar(noun: Noun) -> NockResult {
             tis(x)
         }
 
-        ((), Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d))))) =>
+        ((),
+         Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d))))) =>
             tar(n![a, 2, n![0, 1], 2, n![1, c, d], n![1, 0], 2, n![1, 2, 3], n![1, 0], 4, 4, b]),
 
-        ((), Cell(box a, box Cell(box Atom(7), box Cell(box b, box c)))) => tar(n![a, 2, b, 1, c]),
+        ((),
+         Cell(box a, box Cell(box Atom(7), box Cell(box b, box c)))) => tar(n![a, 2, b, 1, c]),
 
-        ((), Cell(box a, box Cell(box Atom(8), box Cell(box b, box c)))) =>
+        ((),
+         Cell(box a, box Cell(box Atom(8), box Cell(box b, box c)))) =>
             tar(n![a, 7, n![n![7, n![0, 1], b], 0, 1], c]),
 
-        ((), Cell(box a, box Cell(box Atom(9), box Cell(box b, box c)))) =>
+        ((),
+         Cell(box a, box Cell(box Atom(9), box Cell(box b, box c)))) =>
             tar(n![a, 7, c, 2, n![0, 1], 0, b]),
 
-        ((), Cell(box a, box Cell(box Atom(10), box Cell(box Cell(_b, box c), box d)))) =>
+        ((),
+         Cell(box a, box Cell(box Atom(10), box Cell(box Cell(_b, box c), box d)))) =>
             tar(n![a, 8, c, 7, n![0, 3], d]),
 
         ((), Cell(box a, box Cell(box Atom(10), box Cell(_b, box c)))) => tar(n![a, c]),
@@ -426,8 +431,8 @@ mod nock {
 #[cfg(test)]
 mod test {
     fn produces(input: &str, output: &str) {
-        assert_eq!(
-            format!("{}", super::parse(input).expect("Syntax error")), output);
+        assert_eq!(format!("{}", super::parse(input).expect("Syntax error")),
+                   output);
     }
 
     fn fails(input: &str) {
