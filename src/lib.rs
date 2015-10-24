@@ -125,14 +125,14 @@ use Noun::*;
 // *a               *a
 
 impl Formula {
-    pub fn eval(self) -> Result<Noun, Noun> {
+    pub fn eval(self) -> Result<Noun, Formula> {
         match (self.0, self.1) {
             (Wut, Cell(_, _)) => Ok(Atom(0)),
             (Wut, Atom(_)) => Ok(Atom(1)),
             (Lus, Atom(a)) => Ok(Atom(1 + a)),
-            (Lus, a) => Err(a),
+            (Lus, a) => Err(Formula(Lus, a)),
             (Tis, Cell(a, b)) => Ok(Atom(if a == b { 0 } else { 1 })),
-            (Tis, a) => Err(a),
+            (Tis, a) => Err(Formula(Tis, a)),
 
             (Fas, Cell(box Atom(1), box a)) => Ok(a),
             (Fas, Cell(box Atom(2), box Cell(box a, _))) => Ok(a),
@@ -141,26 +141,26 @@ impl Formula {
                 let x = try!(eval(Fas, Cell(box Atom(a / 2), b)));
                 eval(Fas, Cell(box Atom(if a % 2 == 0 { 2 } else { 3 }), box x))
             }
-            (Fas, a) => Err(a),
+            (Fas, a) => Err(Formula(Fas, a)),
 
             (Tar, Cell(a, box Cell(box Cell(b, c), d))) => {
-                let x = try!(eval(Tar, Cell(a.clone(), box Cell(b, c))));
-                let y = try!(eval(Tar, Cell(a, d)));
+                let x = try!(Formula(Tar, Cell(a.clone(), box Cell(b, c))).eval());
+                let y = try!(Formula(Tar, Cell(a, d)).eval());
                 Ok(Cell(box x, box y))
             }
 
             // TODO: Numbered tar ops.
 
-            (Tar, a) => Err(a)
+            (Tar, a) => Err(Formula(Tar, a))
         }
     }
 }
 
-pub fn eval(op: Op, noun: Noun) -> Result<Noun, Noun> {
+pub fn eval(op: Op, noun: Noun) -> Result<Noun, Formula> {
     Formula(op, noun).eval()
 }
 
-pub fn nock(noun: Noun) -> Result<Noun, Noun> { eval(Wut, noun) }
+pub fn nock(noun: Noun) -> Result<Noun, Formula> { eval(Wut, noun) }
 
 pub fn a(val: u64) -> Noun { Noun::Atom(val) }
 
@@ -193,10 +193,9 @@ mod test {
 #[test]
     fn test_eval() {
         use super::Op::*;
-        use super::{a, eval};
+        use super::{a, eval, Formula};
 
         // Examples from https://github.com/cgyarvin/urbit/blob/master/doc/book/1-nock.markdown
-
         assert_eq!(eval(Tis, n![0, 0]), Ok(a(0)));
         assert_eq!(eval(Tis, n![2, 2]), Ok(a(0)));
         assert_eq!(eval(Tis, n![0, 1]), Ok(a(1)));
@@ -205,6 +204,8 @@ mod test {
         assert_eq!(eval(Fas, n![2, n![n![4, 5], n![6, 14, 15]]]), Ok(n![4, 5]));
         assert_eq!(eval(Fas, n![3, n![n![4, 5], n![6, 14, 15]]]), Ok(n![6, 14, 15]));
         assert_eq!(eval(Fas, n![7, n![n![4, 5], n![6, 14, 15]]]), Ok(n![14, 15]));
+
+        assert_eq!(eval(Lus, n![1, 2]), Err(Formula(Lus, n![1, 2])));
     }
 
 #[test]
