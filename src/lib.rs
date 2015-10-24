@@ -446,4 +446,14 @@ mod test {
         assert_eq!(parse("[[1 2] 3]"), Ok(n![n![1, 2], 3]));
         assert_eq!(parse("[1 [2 3]]"), Ok(n![1, n![2, 3]]));
     }
+
+#[test]
+    fn test_parse_formula() {
+        use super::{parse, a};
+
+        assert!(parse("+[1 2]").is_err());
+        assert_eq!(parse("=[0 0]"), Ok(a(0)));
+        assert_eq!(parse("=[0 1]"), Ok(a(1)));
+        assert_eq!(parse("/[3 [[4 5] [6 14 15]]]"), Ok(n![6, 14, 15]));
+    }
 }
