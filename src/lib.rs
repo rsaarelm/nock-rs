@@ -64,6 +64,15 @@ impl str::FromStr for Noun {
     }
 }
 
+/// Macro for noun literals.
+///
+/// Rust n![1, 2, 3] corresponds to Nock [1 2 3]
+macro_rules! n {
+    [$x:expr, $y:expr] => { ::nock::Noun::Cell(box ::nock::Noun::new($x), box ::nock::Noun::new($y)) };
+    [$x:expr, $y:expr, $($ys:expr),+] => { ::nock::Noun::Cell(box ::nock::Noun::new($x), box n![$y, $($ys),+]) };
+}
+
+
 /// An operator for a Nock formula.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Op {
@@ -173,10 +182,10 @@ impl Formula {
 
             (Fas, a) => Err(Formula(Fas, a)),
 
-            (Tar, Cell(a, box Cell(box Cell(b, c), d))) => {
-                let x = try!(Formula(Tar, Cell(a.clone(), box Cell(b, c))).eval());
-                let y = try!(Formula(Tar, Cell(a, d)).eval());
-                Ok(Cell(box x, box y))
+            (Tar, Cell(box a, box Cell(box Cell(box b, box c), box d))) => {
+                let x = try!(Formula(Tar, n![a.clone(), b, c]).eval());
+                let y = try!(Formula(Tar, n![a, d]).eval());
+                Ok(n![x, y])
             }
 
             (Tar, Cell(a, box Cell(box Atom(0), b))) =>
@@ -195,6 +204,19 @@ impl Formula {
                 Formula(Wut, x).eval()
             }
 
+            (Tar, Cell(a, box Cell(box Atom(4), b))) => {
+                let x = try!(Formula(Tar, Cell(a, b)).eval());
+                Formula(Lus, x).eval()
+            }
+
+            (Tar, Cell(a, box Cell(box Atom(5), b))) => {
+                let x = try!(Formula(Tar, Cell(a, b)).eval());
+                Formula(Tis, x).eval()
+            }
+
+            (Tar, Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d))))) => {
+                Formula(Tar, n![a, 2, n![0, 1], 2, n![1, c, d], n![1, 0], 2, n![1, 2, 3], n![1, 0], 4, 4, b]).eval()
+            }
 
             (Tar, a) => Err(Formula(Tar, a))
         }
@@ -208,11 +230,6 @@ pub fn eval(op: Op, noun: Noun) -> Result<Noun, Formula> {
 pub fn nock(noun: Noun) -> Result<Noun, Formula> { eval(Wut, noun) }
 
 pub fn a(val: u64) -> Noun { Noun::Atom(val) }
-
-macro_rules! n {
-    [$x:expr, $y:expr] => { ::nock::Noun::Cell(box ::nock::Noun::new($x), box ::nock::Noun::new($y)) };
-    [$x:expr, $y:expr, $($ys:expr),+] => { ::nock::Noun::Cell(box ::nock::Noun::new($x), box n![$y, $($ys),+]) };
-}
 
 // Re-export hack for testing macros.
 mod nock {
