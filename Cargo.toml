@@ -6,3 +6,7 @@ keywords = ["vm"]
 description = "A stateless virtual machine"
 repository = "https://github.com/rsaarelm/nock-rs"
 license = "MIT"
+
+[[example]]
+name = "repl"
+path = "examples/repl.rs"
