@@ -41,6 +41,10 @@ use std::str;
 //
 // *a               *a
 
+/// A Nock noun, the basic unit of representation.
+///
+/// The noun is either an atom a that's a positive integer or a pair of two
+/// nouns, [a b].
 #[derive(Clone, PartialEq, Eq)]
 pub enum Noun {
     Atom(u64), // TODO: Need bigints?
@@ -96,6 +100,7 @@ impl str::FromStr for Noun {
     }
 }
 
+/// An operator for a Nock formula.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Op {
     Wut, // ?
@@ -103,6 +108,17 @@ pub enum Op {
     Tis, // =
     Fas, // /
     Tar, // *
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Formula(pub Op, pub Noun);
+
+impl str::FromStr for Formula {
+    type Err = ParseNockError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        unimplemented!();
+    }
 }
 
 use Op::*;
@@ -198,7 +214,7 @@ mod test {
     }
 
 #[test]
-    fn test_parse() {
+    fn test_parse_noun() {
         use super::Noun;
 
         assert!("".parse::<Noun>().is_err());
@@ -209,5 +225,14 @@ mod test {
         assert_eq!("[1 2 3]".parse::<Noun>(), Ok(n![1, 2, 3]));
         assert_eq!("[[1 2] 3]".parse::<Noun>(), Ok(n![n![1, 2], 3]));
         assert_eq!("[1 [2 3]]".parse::<Noun>(), Ok(n![1, n![2, 3]]));
+
+    }
+
+#[test]
+    fn test_parse_formula() {
+        use super::Op::*;
+        use super::Formula;
+
+        assert_eq!("+[1 2]".parse::<Formula>(), Ok(Formula(Lus, n![1, 2])));
     }
 }
