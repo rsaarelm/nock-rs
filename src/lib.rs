@@ -494,6 +494,8 @@ mod test {
 
     #[test]
     fn test_nock() {
+        produces("*[42 [4 0 1] [3 0 1]]", "[43 1]");
+
         // Operator 0: Axis
         produces("*[[19 42] [0 3] 0 2]", "[42 19]");
         produces("*[[19 42] 0 3]", "42");
