@@ -128,6 +128,10 @@ impl fmt::Debug for Formula {
 use Op::*;
 use Noun::*;
 
+pub struct Bottom;
+
+pub type NockResult = Result<Noun, Bottom>;
+
 // Nock(a)          *a
 // [a b c]          [a [b c]]
 //
@@ -163,6 +167,99 @@ use Noun::*;
 // *[a 10 b c]      *[a c]
 //
 // *a               *a
+
+fn wut(noun: Noun) -> NockResult {
+    match noun {
+        Cell(_, _) => Ok(a(0)),
+        Atom(_) => Ok(a(1)),
+    }
+}
+
+fn lus(noun: Noun) -> NockResult {
+    match noun {
+        Atom(n) => Ok(a(n + 1)),
+        _ => Err(Bottom),
+    }
+}
+
+fn tis(noun: Noun) -> NockResult {
+    match noun {
+        Cell(a, b) => Ok(Atom(if a == b {
+            0
+        } else {
+            1
+        })),
+        _ => Err(Bottom),
+    }
+}
+
+fn fas(noun: Noun) -> NockResult {
+    match noun {
+        Cell(box Atom(1), box a) => Ok(a),
+        Cell(box Atom(2), box Cell(box a, _)) => Ok(a),
+        Cell(box Atom(3), box Cell(_, box b)) => Ok(b),
+
+        Cell(box Atom(a), b) => {
+            let x = try!(fas(Cell(box Atom(a / 2), b)));
+            fas(Cell(box Atom(2 + a % 2), box x))
+        }
+
+        _ => Err(Bottom),
+    }
+}
+
+pub fn nock(noun: Noun) -> NockResult {
+    match noun {
+        Cell(box a, box Cell(box Cell(box b, box c), box d)) => {
+            let x = try!(nock(n![a.clone(), b, c]));
+            let y = try!(nock(n![a, d]));
+            Ok(n![x, y])
+        }
+
+        Cell(a, box Cell(box Atom(0), b)) => nock(Cell(b, a)),
+
+        Cell(_a, box Cell(box Atom(1), box b)) => Ok(b),
+
+        Cell(a, box Cell(box Atom(2), box Cell(b, c))) => {
+            let x = try!(nock(Cell(a.clone(), b)));
+            let y = try!(nock(Cell(a, c)));
+            nock(Cell(box x, box y))
+        }
+
+        Cell(a, box Cell(box Atom(3), b)) => {
+            let x = try!(nock(Cell(a, b)));
+            wut(x)
+        }
+
+        Cell(a, box Cell(box Atom(4), b)) => {
+            let x = try!(nock(Cell(a, b)));
+            lus(x)
+        }
+
+        Cell(a, box Cell(box Atom(5), b)) => {
+            let x = try!(nock(Cell(a, b)));
+            tis(x)
+        }
+
+        Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d)))) =>
+            nock(n![a, 2, n![0, 1], 2, n![1, c, d], n![1, 0], 2, n![1, 2, 3], n![1, 0], 4, 4, b]),
+
+        Cell(box a, box Cell(box Atom(7), box Cell(box b, box c))) => nock(n![a, 2, b, 1, c]),
+
+        Cell(box a, box Cell(box Atom(8), box Cell(box b, box c))) =>
+            nock(n![a, 7, n![n![7, n![0, 1], b], 0, 1], c]),
+
+        Cell(box a, box Cell(box Atom(9), box Cell(box b, box c))) =>
+            nock(n![a, 7, c, 2, n![0, 1], 0, b]),
+
+        Cell(box a, box Cell(box Atom(10), box Cell(box Cell(_b, box c), box d))) =>
+            nock(n![a, 8, c, 7, n![0, 3], d]),
+
+        Cell(box a, box Cell(box Atom(10), box Cell(_b, box c))) => nock(n![a, c]),
+
+        _ => Err(Bottom),
+    }
+}
 
 impl Formula {
     pub fn eval(self) -> Result<Noun, Formula> {
@@ -275,10 +372,6 @@ impl Formula {
 
 pub fn eval(op: Op, noun: Noun) -> Result<Noun, Formula> {
     Formula(op, noun).eval()
-}
-
-pub fn nock(noun: Noun) -> Result<Noun, Formula> {
-    eval(Wut, noun)
 }
 
 pub fn a(val: u64) -> Noun {
