@@ -473,6 +473,8 @@ mod test {
                    Ok(n![14, 15]));
 
         assert_eq!(lus(n![1, 2]), Err(Bottom));
+
+        assert_eq!(fas(n![3, 8]), Err(Bottom));
     }
 
     #[test]
