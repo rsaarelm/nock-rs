@@ -175,7 +175,7 @@ fn fas(noun: Noun) -> NockResult {
     }
 }
 
-pub fn tar(noun: Noun) -> NockResult {
+fn tar(noun: Noun) -> NockResult {
     // FIXME: Rust won't pattern-match the complex Cell expressions if they're
     // the top-level expression but will handle fine if they're wrapped in a
     // trivial tuple.
@@ -237,6 +237,8 @@ pub fn tar(noun: Noun) -> NockResult {
     }
 }
 
+/// Evaluate a Nock noun into its product.
+pub fn nock(noun: Noun) -> NockResult { tar(noun) }
 
 /// Parse tokens
 enum Tok {
@@ -353,6 +355,7 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
     }
 }
 
+/// Parse a Nock string.
 pub fn parse(input: &str) -> NockResult {
     parse_tokens(&mut Tokenizer::new(input.chars()))
 }
