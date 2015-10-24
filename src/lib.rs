@@ -425,6 +425,15 @@ mod nock {
 
 #[cfg(test)]
 mod test {
+    fn produces(input: &str, output: &str) {
+        assert_eq!(
+            format!("{}", super::parse(input).expect("Syntax error")), output);
+    }
+
+    fn fails(input: &str) {
+        assert!(super::parse(input).is_err());
+    }
+
     #[test]
     fn test_macro() {
         use super::Noun::*;
@@ -460,25 +469,23 @@ mod test {
 
     #[test]
     fn test_eval() {
-        use super::{Bottom, a, tis, fas, lus};
+        produces("=[0 0]", "0");
+        produces("=[2 2]", "0");
+        produces("=[0 1]", "1");
 
-        // Examples from
-        // https://github.com/cgyarvin/urbit/blob/master/doc/book/1-nock.markdown
-        assert_eq!(tis(n![0, 0]), Ok(a(0)));
-        assert_eq!(tis(n![2, 2]), Ok(a(0)));
-        assert_eq!(tis(n![0, 1]), Ok(a(1)));
+        produces("/[1 [97 2] [1 42 0]]", "[[97 2] 1 42 0]");
+        produces("/[2 [97 2] [1 42 0]]", "[97 2]");
 
-        assert_eq!(fas(n![1, n![n![4, 5], n![6, 14, 15]]]),
-                   Ok(n![n![4, 5], n![6, 14, 15]]));
-        assert_eq!(fas(n![2, n![n![4, 5], n![6, 14, 15]]]), Ok(n![4, 5]));
-        assert_eq!(fas(n![3, n![n![4, 5], n![6, 14, 15]]]),
-                   Ok(n![6, 14, 15]));
-        assert_eq!(fas(n![7, n![n![4, 5], n![6, 14, 15]]]),
-                   Ok(n![14, 15]));
+        produces("/[3 [97 2] [1 42 0]]", "[1 42 0]");
+        produces("/[6 [97 2] [1 42 0]]", "1");
+        produces("/[7 [97 2] [1 42 0]]", "[42 0]");
 
-        assert_eq!(lus(n![1, 2]), Err(Bottom));
+        produces("+4", "5");
 
-        assert_eq!(fas(n![3, 8]), Err(Bottom));
+        produces("*[[19 42] [0 3] 0 2]", "[42 19]");
+
+        fails("+[1 2]");
+        fails("/[3 8]");
     }
 
     #[test]
@@ -493,15 +500,5 @@ mod test {
         assert_eq!(parse("[1 2 3]"), Ok(n![1, 2, 3]));
         assert_eq!(parse("[[1 2] 3]"), Ok(n![n![1, 2], 3]));
         assert_eq!(parse("[1 [2 3]]"), Ok(n![1, n![2, 3]]));
-    }
-
-    #[test]
-    fn test_parse_formula() {
-        use super::{parse, a};
-
-        assert!(parse("+[1 2]").is_err());
-        assert_eq!(parse("=[0 0]"), Ok(a(0)));
-        assert_eq!(parse("=[0 1]"), Ok(a(1)));
-        assert_eq!(parse("/[3 [[4 5] [6 14 15]]]"), Ok(n![6, 14, 15]));
     }
 }
