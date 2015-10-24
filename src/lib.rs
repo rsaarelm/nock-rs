@@ -124,34 +124,40 @@ use Noun::*;
 //
 // *a               *a
 
-pub fn eval(op: Op, noun: Noun) -> Result<Noun, Noun> {
-    match (op, noun) {
-        (Wut, Cell(_, _)) => Ok(Atom(0)),
-        (Wut, Atom(_)) => Ok(Atom(1)),
-        (Lus, Atom(a)) => Ok(Atom(1 + a)),
-        (Lus, a) => Err(a),
-        (Tis, Cell(a, b)) => Ok(Atom(if a == b { 0 } else { 1 })),
-        (Tis, a) => Err(a),
+impl Formula {
+    pub fn eval(self) -> Result<Noun, Noun> {
+        match (self.0, self.1) {
+            (Wut, Cell(_, _)) => Ok(Atom(0)),
+            (Wut, Atom(_)) => Ok(Atom(1)),
+            (Lus, Atom(a)) => Ok(Atom(1 + a)),
+            (Lus, a) => Err(a),
+            (Tis, Cell(a, b)) => Ok(Atom(if a == b { 0 } else { 1 })),
+            (Tis, a) => Err(a),
 
-        (Fas, Cell(box Atom(1), box a)) => Ok(a),
-        (Fas, Cell(box Atom(2), box Cell(box a, _))) => Ok(a),
-        (Fas, Cell(box Atom(3), box Cell(_, box b))) => Ok(b),
-        (Fas, Cell(box Atom(a), b)) => {
-            let x = try!(eval(Fas, Cell(box Atom(a / 2), b)));
-            eval(Fas, Cell(box Atom(if a % 2 == 0 { 2 } else { 3 }), box x))
+            (Fas, Cell(box Atom(1), box a)) => Ok(a),
+            (Fas, Cell(box Atom(2), box Cell(box a, _))) => Ok(a),
+            (Fas, Cell(box Atom(3), box Cell(_, box b))) => Ok(b),
+            (Fas, Cell(box Atom(a), b)) => {
+                let x = try!(eval(Fas, Cell(box Atom(a / 2), b)));
+                eval(Fas, Cell(box Atom(if a % 2 == 0 { 2 } else { 3 }), box x))
+            }
+            (Fas, a) => Err(a),
+
+            (Tar, Cell(a, box Cell(box Cell(b, c), d))) => {
+                let x = try!(eval(Tar, Cell(a.clone(), box Cell(b, c))));
+                let y = try!(eval(Tar, Cell(a, d)));
+                Ok(Cell(box x, box y))
+            }
+
+            // TODO: Numbered tar ops.
+
+            (Tar, a) => Err(a)
         }
-        (Fas, a) => Err(a),
-
-        (Tar, Cell(a, box Cell(box Cell(b, c), d))) => {
-            let x = try!(eval(Tar, Cell(a.clone(), box Cell(b, c))));
-            let y = try!(eval(Tar, Cell(a, d)));
-            Ok(Cell(box x, box y))
-        }
-
-        // TODO: Numbered tar ops.
-
-        (Tar, a) => Err(a)
     }
+}
+
+pub fn eval(op: Op, noun: Noun) -> Result<Noun, Noun> {
+    Formula(op, noun).eval()
 }
 
 pub fn nock(noun: Noun) -> Result<Noun, Noun> { eval(Wut, noun) }
