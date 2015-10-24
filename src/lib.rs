@@ -330,13 +330,17 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
                         // Take in digits.
                         if c.is_digit(10) {
                             buf.push(c);
+                        } else if c == '.' {
+                            // Dot is used as a sequence separator (*not* as
+                            // decimal point). It can show up anywhere in the
+                            // digit sequence and will be ignored.
+                        } else if c == '[' || c == ']' || c.is_whitespace() {
                             // Whitespace or cell brackets can terminate the
                             // digit sequence.
-                        } else if c == '[' || c == ']' || c.is_whitespace() {
                             break;
+                        } else {
                             // Anything else in the middle of the digit sequence
                             // is an error.
-                        } else {
                             buf.push(c);
                             return Some(Error(buf.into_iter().collect()));
                         }
