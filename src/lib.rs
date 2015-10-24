@@ -128,6 +128,7 @@ impl fmt::Debug for Formula {
 use Op::*;
 use Noun::*;
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Bottom;
 
 pub type NockResult = Result<Noun, Bottom>;
@@ -208,6 +209,7 @@ fn fas(noun: Noun) -> NockResult {
     }
 }
 
+/*
 pub fn nock(noun: Noun) -> NockResult {
     match noun {
         Cell(box a, box Cell(box Cell(box b, box c), box d)) => {
@@ -260,42 +262,15 @@ pub fn nock(noun: Noun) -> NockResult {
         _ => Err(Bottom),
     }
 }
+*/
 
 impl Formula {
-    pub fn eval(self) -> Result<Noun, Formula> {
-        info!("Evaluating {}", self.0);
+    pub fn eval(self) -> NockResult {
         match (self.0, self.1) {
-            (Wut, Cell(_, _)) => Ok(Atom(0)),
-            (Wut, Atom(_)) => Ok(Atom(1)),
-
-            // Math
-            (Lus, Atom(a)) => Ok(Atom(1 + a)),
-
-            (Lus, a) => Err(Formula(Lus, a)),
-            (Tis, Cell(a, b)) => Ok(Atom(if a == b {
-                0
-            } else {
-                1
-            })),
-            (Tis, a) => Err(Formula(Tis, a)),
-
-            (Fas, Cell(box Atom(1), box a)) => Ok(a),
-            (Fas, Cell(box Atom(2), box Cell(box a, _))) => Ok(a),
-            (Fas, Cell(box Atom(3), box Cell(_, box b))) => Ok(b),
-
-            // Math
-            (Fas, Cell(box Atom(a), b)) => {
-                let x = try!(Formula(Fas, Cell(box Atom(a / 2), b)).eval());
-                eval(Fas,
-                     Cell(box Atom(if a % 2 == 0 {
-                              2
-                          } else {
-                              3
-                          }),
-                          box x))
-            }
-
-            (Fas, a) => Err(Formula(Fas, a)),
+            (Wut, n) => wut(n),
+            (Lus, n) => lus(n),
+            (Tis, n) => tis(n),
+            (Fas, n) => fas(n),
 
             (Tar, Cell(box a, box Cell(box Cell(box b, box c), box d))) => {
                 let x = try!(Formula(Tar, n![a.clone(), b, c]).eval());
@@ -365,12 +340,12 @@ impl Formula {
              Cell(box a, box Cell(box Atom(10), box Cell(_b, box c)))) =>
                 Formula(Tar, n![a, c]).eval(),
 
-            (Tar, a) => Err(Formula(Tar, a)),
+            (Tar, _) => Err(Bottom)
         }
     }
 }
 
-pub fn eval(op: Op, noun: Noun) -> Result<Noun, Formula> {
+pub fn eval(op: Op, noun: Noun) -> NockResult {
     Formula(op, noun).eval()
 }
 
@@ -490,7 +465,7 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
     }
 }
 
-pub fn parse(input: &str) -> Result<Noun, ()> {
+pub fn parse(input: &str) -> NockResult {
     parse_tokens(&mut Tokenizer::new(input.chars()))
 }
 
@@ -498,18 +473,18 @@ pub fn parse(input: &str) -> Result<Noun, ()> {
 ///
 /// Formulas will be evaluated on the spot. Failure to evaluate the formula
 /// will result an error.
-fn parse_tokens<I: Iterator<Item = Tok>>(input: &mut I) -> Result<Noun, ()> {
+fn parse_tokens<I: Iterator<Item = Tok>>(input: &mut I) -> NockResult {
     use Tok::*;
     match input.next() {
         Some(Sel) => parse_cell(input),
         Some(Op(op)) => parse_formula(op, input),
         Some(Atom(n)) => Ok(Noun::Atom(n)),
-        _ => Err(()),
+        _ => Err(Bottom),
     }
 }
 
 /// Parses a cell, must have at least two nouns inside.
-fn parse_cell<I: Iterator<Item = Tok>>(input: &mut I) -> Result<Noun, ()> {
+fn parse_cell<I: Iterator<Item = Tok>>(input: &mut I) -> NockResult {
     let mut elts = Vec::new();
     // Must have at least two formulas/nouns inside.
     elts.push(try!(parse_tokens(input)));
@@ -526,29 +501,29 @@ fn parse_cell<I: Iterator<Item = Tok>>(input: &mut I) -> Result<Noun, ()> {
 }
 
 /// Parses either an end of cell or a further element.
-fn parse_cell_tail<I: Iterator<Item = Tok>>(input: &mut I) -> Option<Result<Noun, ()>> {
+fn parse_cell_tail<I: Iterator<Item = Tok>>(input: &mut I) -> Option<NockResult> {
     use Tok::*;
     match input.next() {
         Some(Ser) => None,
         Some(Sel) => Some(parse_cell(input)),
         Some(Op(op)) => Some(parse_formula(op, input)),
         Some(Atom(n)) => Some(Ok(Noun::Atom(n))),
-        _ => Some(Err(())),
+        _ => Some(Err(Bottom)),
     }
 }
 
-fn parse_noun<I: Iterator<Item = Tok>>(input: &mut I) -> Result<Noun, ()> {
+fn parse_noun<I: Iterator<Item = Tok>>(input: &mut I) -> NockResult {
     use Tok::*;
     match input.next() {
         Some(Sel) => parse_cell(input),
         Some(Atom(n)) => Ok(Noun::Atom(n)),
-        _ => Err(()),
+        _ => Err(Bottom),
     }
 }
 
-fn parse_formula<I: Iterator<Item = Tok>>(op: Op, input: &mut I) -> Result<Noun, ()> {
+fn parse_formula<I: Iterator<Item = Tok>>(op: Op, input: &mut I) -> NockResult {
     let noun = try!(parse_noun(input));
-    Formula(op, noun).eval().map_err(|_| ())
+    Formula(op, noun).eval()
 }
 
 // Re-export hack for testing macros.
@@ -594,7 +569,7 @@ mod test {
     #[test]
     fn test_eval() {
         use super::Op::*;
-        use super::{a, eval, Formula};
+        use super::{Bottom, a, eval};
 
         // Examples from
         // https://github.com/cgyarvin/urbit/blob/master/doc/book/1-nock.markdown
@@ -610,7 +585,7 @@ mod test {
         assert_eq!(eval(Fas, n![7, n![n![4, 5], n![6, 14, 15]]]),
                    Ok(n![14, 15]));
 
-        assert_eq!(eval(Lus, n![1, 2]), Err(Formula(Lus, n![1, 2])));
+        assert_eq!(eval(Lus, n![1, 2]), Err(Bottom));
     }
 
     #[test]
