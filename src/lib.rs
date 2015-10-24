@@ -253,7 +253,7 @@ enum Tok {
     Op(Op),
     Atom(u64),
 
-    Error(char),
+    Error(String),
 }
 
 struct Tokenizer<I> {
@@ -298,10 +298,18 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
                 loop {
                     self.advance();
                     if let Some(c) = self.peek {
+                        // Take in digits.
                         if c.is_digit(10) {
                             buf.push(c);
-                        } else {
+                        // Whitespace or ser can terminate the digit
+                        // sequence.
+                        } else if c == ']' || c.is_whitespace() {
                             break;
+                        // Anything else in the middle of the digit sequence
+                        // is an error.
+                        } else {
+                            buf.push(c);
+                            return Some(Error(buf.into_iter().collect()));
                         }
                     } else {
                         break;
@@ -322,7 +330,7 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
             Some('*') => { self.advance(); Some(Op(Tar)) }
 
             // XXX: Is there a better way to handle errors?
-            Some(c) => { self.advance(); Some(Error(c)) }
+            Some(c) => { self.advance(); Some(Error(Some(c).into_iter().collect())) }
         }
     }
 }
