@@ -191,7 +191,7 @@ impl Formula {
             (Tar, Cell(a, box Cell(box Atom(0), b))) =>
                 Formula(Fas, Cell(b, a)).eval(),
 
-            (Tar, Cell(a, box Cell(box Atom(1), box b))) => Ok(b),
+            (Tar, Cell(_a, box Cell(box Atom(1), box b))) => Ok(b),
 
             (Tar, Cell(a, box Cell(box Atom(2), box Cell(b, c)))) => {
                 let x = try!(Formula(Tar, Cell(a.clone(), b)).eval());
@@ -214,9 +214,24 @@ impl Formula {
                 Formula(Tis, x).eval()
             }
 
-            (Tar, Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d))))) => {
-                Formula(Tar, n![a, 2, n![0, 1], 2, n![1, c, d], n![1, 0], 2, n![1, 2, 3], n![1, 0], 4, 4, b]).eval()
-            }
+            (Tar, Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d))))) =>
+                Formula(Tar, n![a, 2, n![0, 1], 2, n![1, c, d], n![1, 0],
+                        2, n![1, 2, 3], n![1, 0], 4, 4, b]).eval(),
+
+            (Tar, Cell(box a, box Cell(box Atom(7), box Cell(box b, box c)))) =>
+                Formula(Tar, n![a, 2, b, 1, c]).eval(),
+
+            (Tar, Cell(box a, box Cell(box Atom(8), box Cell(box b, box c)))) =>
+                Formula(Tar, n![a, 7, n![n![7, n![0, 1], b], 0, 1], c]).eval(),
+
+            (Tar, Cell(box a, box Cell(box Atom(9), box Cell(box b, box c)))) =>
+                Formula(Tar, n![a, 7, c, 2, n![0, 1], 0, b]).eval(),
+
+            (Tar, Cell(box a, box Cell(box Atom(10), box Cell(box Cell(_b, box c), box d)))) =>
+                Formula(Tar, n![a, 8, c, 7, n![0, 3], d]).eval(),
+
+            (Tar, Cell(box a, box Cell(box Atom(10), box Cell(_b, box c)))) =>
+                Formula(Tar, n![a, c]).eval(),
 
             (Tar, a) => Err(Formula(Tar, a))
         }
