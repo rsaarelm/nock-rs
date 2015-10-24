@@ -250,11 +250,7 @@ pub fn a(val: u64) -> Noun { Noun::Atom(val) }
 enum Tok {
     Sel, // [
     Ser, // ]
-    Wut, // ?
-    Lus, // +
-    Tis, // =
-    Fas, // /
-    Tar, // *
+    Op(Op),
     Atom(u64),
 
     Error(char),
@@ -284,6 +280,7 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
 
     fn next(&mut self) -> Option<Tok> {
         use Tok::*;
+        use Op::*;
 
         match self.peek {
             None => { None }
@@ -318,11 +315,11 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
 
             Some('[') => { self.advance(); Some(Sel) }
             Some(']') => { self.advance(); Some(Ser) }
-            Some('?') => { self.advance(); Some(Wut) }
-            Some('+') => { self.advance(); Some(Lus) }
-            Some('=') => { self.advance(); Some(Tis) }
-            Some('/') => { self.advance(); Some(Fas) }
-            Some('*') => { self.advance(); Some(Tar) }
+            Some('?') => { self.advance(); Some(Op(Wut)) }
+            Some('+') => { self.advance(); Some(Op(Lus)) }
+            Some('=') => { self.advance(); Some(Op(Tis)) }
+            Some('/') => { self.advance(); Some(Op(Fas)) }
+            Some('*') => { self.advance(); Some(Op(Tar)) }
 
             // XXX: Is there a better way to handle errors?
             Some(c) => { self.advance(); Some(Error(c)) }
@@ -330,6 +327,33 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
     }
 }
 
+fn parse<I: Iterator<Item=Tok>>(input: &mut I) -> Result<Noun, ()> {
+    use Tok::*;
+    match input.next() {
+        Some(Sel) => parse_cell(input),
+        Some(Op(op)) => parse_formula(op, input),
+        Some(Atom(n)) => Ok(Noun::Atom(n)),
+        _ => Err(())
+    }
+}
+
+fn parse_cell<I: Iterator<Item=Tok>>(input: &mut I) -> Result<Noun, ()> {
+    unimplemented!();
+}
+
+fn parse_noun<I: Iterator<Item=Tok>>(input: &mut I) -> Result<Noun, ()> {
+    use Tok::*;
+    match input.next() {
+        Some(Sel) => parse_cell(input),
+        Some(Atom(n)) => Ok(Noun::Atom(n)),
+        _ => Err(())
+    }
+}
+
+fn parse_formula<I: Iterator<Item=Tok>>(op: Op, input: &mut I) -> Result<Noun, ()> {
+    let noun = try!(parse_noun(input));
+    Formula(op, noun).eval().map_err(|_| ())
+}
 
 // Re-export hack for testing macros.
 mod nock {
