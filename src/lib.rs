@@ -74,7 +74,21 @@ pub enum Op {
     Tar, // *
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+impl fmt::Display for Op {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Op::*;
+        write!(f, "{}",
+               match self {
+                   &Wut => '?',
+                   &Lus => '+',
+                   &Tis => '=',
+                   &Fas => '/',
+                   &Tar => '*',
+               })
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
 pub struct Formula(pub Op, pub Noun);
 
 impl str::FromStr for Formula {
@@ -83,6 +97,16 @@ impl str::FromStr for Formula {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         unimplemented!();
     }
+}
+
+impl fmt::Display for Formula {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{}", self.0, self.1)
+    }
+}
+
+impl fmt::Debug for Formula {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{}", self) }
 }
 
 use Op::*;
