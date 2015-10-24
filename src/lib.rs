@@ -175,15 +175,15 @@ fn fas(noun: Noun) -> NockResult {
     }
 }
 
-pub fn nock(noun: Noun) -> NockResult {
+pub fn tar(noun: Noun) -> NockResult {
     // FIXME: Rust won't pattern-match the complex Cell expressions if they're
     // the top-level expression but will handle fine if they're wrapped in a
     // trivial tuple.
     info!("*{}", noun);
     match ((), noun) {
         ((), Cell(box a, box Cell(box Cell(box b, box c), box d))) => {
-            let x = try!(nock(n![a.clone(), b, c]));
-            let y = try!(nock(n![a, d]));
+            let x = try!(tar(n![a.clone(), b, c]));
+            let y = try!(tar(n![a, d]));
             Ok(n![x, y])
         }
 
@@ -192,41 +192,41 @@ pub fn nock(noun: Noun) -> NockResult {
         ((), Cell(_a, box Cell(box Atom(1), box b))) => Ok(b),
 
         ((), Cell(a, box Cell(box Atom(2), box Cell(b, c)))) => {
-            let x = try!(nock(Cell(a.clone(), b)));
-            let y = try!(nock(Cell(a, c)));
-            nock(Cell(box x, box y))
+            let x = try!(tar(Cell(a.clone(), b)));
+            let y = try!(tar(Cell(a, c)));
+            tar(Cell(box x, box y))
         }
 
         ((), Cell(a, box Cell(box Atom(3), b))) => {
-            let x = try!(nock(Cell(a, b)));
+            let x = try!(tar(Cell(a, b)));
             wut(x)
         }
 
         ((), Cell(a, box Cell(box Atom(4), b))) => {
-            let x = try!(nock(Cell(a, b)));
+            let x = try!(tar(Cell(a, b)));
             lus(x)
         }
 
         ((), Cell(a, box Cell(box Atom(5), b))) => {
-            let x = try!(nock(Cell(a, b)));
+            let x = try!(tar(Cell(a, b)));
             tis(x)
         }
 
         ((), Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d))))) =>
-            nock(n![a, 2, n![0, 1], 2, n![1, c, d], n![1, 0], 2, n![1, 2, 3], n![1, 0], 4, 4, b]),
+            tar(n![a, 2, n![0, 1], 2, n![1, c, d], n![1, 0], 2, n![1, 2, 3], n![1, 0], 4, 4, b]),
 
-        ((), Cell(box a, box Cell(box Atom(7), box Cell(box b, box c)))) => nock(n![a, 2, b, 1, c]),
+        ((), Cell(box a, box Cell(box Atom(7), box Cell(box b, box c)))) => tar(n![a, 2, b, 1, c]),
 
         ((), Cell(box a, box Cell(box Atom(8), box Cell(box b, box c)))) =>
-            nock(n![a, 7, n![n![7, n![0, 1], b], 0, 1], c]),
+            tar(n![a, 7, n![n![7, n![0, 1], b], 0, 1], c]),
 
         ((), Cell(box a, box Cell(box Atom(9), box Cell(box b, box c)))) =>
-            nock(n![a, 7, c, 2, n![0, 1], 0, b]),
+            tar(n![a, 7, c, 2, n![0, 1], 0, b]),
 
         ((), Cell(box a, box Cell(box Atom(10), box Cell(box Cell(_b, box c), box d)))) =>
-            nock(n![a, 8, c, 7, n![0, 3], d]),
+            tar(n![a, 8, c, 7, n![0, 3], d]),
 
-        ((), Cell(box a, box Cell(box Atom(10), box Cell(_b, box c)))) => nock(n![a, c]),
+        ((), Cell(box a, box Cell(box Atom(10), box Cell(_b, box c)))) => tar(n![a, c]),
 
         _ => Err(Bottom),
     }
@@ -368,7 +368,7 @@ fn parse_tokens<I: Iterator<Item = Tok>>(input: &mut I) -> NockResult {
         Some(Lus) => lus(try!(parse_noun(input))),
         Some(Tis) => tis(try!(parse_noun(input))),
         Some(Fas) => fas(try!(parse_noun(input))),
-        Some(Tar) => nock(try!(parse_noun(input))),
+        Some(Tar) => tar(try!(parse_noun(input))),
         Some(Atom(n)) => Ok(Noun::Atom(n)),
         _ => Err(Bottom),
     }
@@ -402,7 +402,7 @@ fn parse_cell_tail<I: Iterator<Item = Tok>>(input: &mut I) -> Option<NockResult>
         Some(Lus) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(lus(n))),
         Some(Tis) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(tis(n))),
         Some(Fas) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(fas(n))),
-        Some(Tar) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(nock(n))),
+        Some(Tar) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(tar(n))),
 
         Some(Atom(n)) => Some(Ok(Noun::Atom(n))),
         _ => Some(Err(Bottom)),
