@@ -84,48 +84,6 @@ macro_rules! n {
     [$x:expr, $y:expr, $($ys:expr),+] => { ::nock::Noun::Cell(box ::nock::Noun::new($x), box n![$y, $($ys),+]) };
 }
 
-
-/// An operator for a Nock formula.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum Op {
-    Wut, // ?
-    Lus, // +
-    Tis, // =
-    Fas, // /
-    Tar, // *
-}
-
-impl fmt::Display for Op {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use Op::*;
-        write!(f,
-               "{}",
-               match self {
-                   &Wut => '?',
-                   &Lus => '+',
-                   &Tis => '=',
-                   &Fas => '/',
-                   &Tar => '*',
-               })
-    }
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub struct Formula(pub Op, pub Noun);
-
-impl fmt::Display for Formula {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}{}", self.0, self.1)
-    }
-}
-
-impl fmt::Debug for Formula {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-
-use Op::*;
 use Noun::*;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -170,6 +128,7 @@ pub type NockResult = Result<Noun, Bottom>;
 // *a               *a
 
 fn wut(noun: Noun) -> NockResult {
+    info!("?{}", noun);
     match noun {
         Cell(_, _) => Ok(a(0)),
         Atom(_) => Ok(a(1)),
@@ -177,6 +136,7 @@ fn wut(noun: Noun) -> NockResult {
 }
 
 fn lus(noun: Noun) -> NockResult {
+    info!("+{}", noun);
     match noun {
         Atom(n) => Ok(a(n + 1)),
         _ => Err(Bottom),
@@ -184,6 +144,7 @@ fn lus(noun: Noun) -> NockResult {
 }
 
 fn tis(noun: Noun) -> NockResult {
+    info!("={}", noun);
     match noun {
         Cell(a, b) => Ok(Atom(if a == b {
             0
@@ -195,6 +156,7 @@ fn tis(noun: Noun) -> NockResult {
 }
 
 fn fas(noun: Noun) -> NockResult {
+    info!("/{}", noun);
     match noun {
         Cell(box Atom(1), box a) => Ok(a),
         Cell(box Atom(2), box Cell(box a, _)) => Ok(a),
@@ -209,145 +171,63 @@ fn fas(noun: Noun) -> NockResult {
     }
 }
 
-/*
 pub fn nock(noun: Noun) -> NockResult {
-    match noun {
-        Cell(box a, box Cell(box Cell(box b, box c), box d)) => {
+    // FIXME: Rust won't pattern-match the complex Cell expressions if they're
+    // the top-level expression but will handle fine if they're wrapped in a
+    // trivial tuple.
+    info!("*{}", noun);
+    match ((), noun) {
+        ((), Cell(box a, box Cell(box Cell(box b, box c), box d))) => {
             let x = try!(nock(n![a.clone(), b, c]));
             let y = try!(nock(n![a, d]));
             Ok(n![x, y])
         }
 
-        Cell(a, box Cell(box Atom(0), b)) => nock(Cell(b, a)),
+        ((), Cell(a, box Cell(box Atom(0), b))) => fas(Cell(b, a)),
 
-        Cell(_a, box Cell(box Atom(1), box b)) => Ok(b),
+        ((), Cell(_a, box Cell(box Atom(1), box b))) => Ok(b),
 
-        Cell(a, box Cell(box Atom(2), box Cell(b, c))) => {
+        ((), Cell(a, box Cell(box Atom(2), box Cell(b, c)))) => {
             let x = try!(nock(Cell(a.clone(), b)));
             let y = try!(nock(Cell(a, c)));
             nock(Cell(box x, box y))
         }
 
-        Cell(a, box Cell(box Atom(3), b)) => {
+        ((), Cell(a, box Cell(box Atom(3), b))) => {
             let x = try!(nock(Cell(a, b)));
             wut(x)
         }
 
-        Cell(a, box Cell(box Atom(4), b)) => {
+        ((), Cell(a, box Cell(box Atom(4), b))) => {
             let x = try!(nock(Cell(a, b)));
             lus(x)
         }
 
-        Cell(a, box Cell(box Atom(5), b)) => {
+        ((), Cell(a, box Cell(box Atom(5), b))) => {
             let x = try!(nock(Cell(a, b)));
             tis(x)
         }
 
-        Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d)))) =>
+        ((), Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d))))) =>
             nock(n![a, 2, n![0, 1], 2, n![1, c, d], n![1, 0], 2, n![1, 2, 3], n![1, 0], 4, 4, b]),
 
-        Cell(box a, box Cell(box Atom(7), box Cell(box b, box c))) => nock(n![a, 2, b, 1, c]),
+        ((), Cell(box a, box Cell(box Atom(7), box Cell(box b, box c)))) => nock(n![a, 2, b, 1, c]),
 
-        Cell(box a, box Cell(box Atom(8), box Cell(box b, box c))) =>
+        ((), Cell(box a, box Cell(box Atom(8), box Cell(box b, box c)))) =>
             nock(n![a, 7, n![n![7, n![0, 1], b], 0, 1], c]),
 
-        Cell(box a, box Cell(box Atom(9), box Cell(box b, box c))) =>
+        ((), Cell(box a, box Cell(box Atom(9), box Cell(box b, box c)))) =>
             nock(n![a, 7, c, 2, n![0, 1], 0, b]),
 
-        Cell(box a, box Cell(box Atom(10), box Cell(box Cell(_b, box c), box d))) =>
+        ((), Cell(box a, box Cell(box Atom(10), box Cell(box Cell(_b, box c), box d)))) =>
             nock(n![a, 8, c, 7, n![0, 3], d]),
 
-        Cell(box a, box Cell(box Atom(10), box Cell(_b, box c))) => nock(n![a, c]),
+        ((), Cell(box a, box Cell(box Atom(10), box Cell(_b, box c)))) => nock(n![a, c]),
 
         _ => Err(Bottom),
     }
 }
-*/
 
-impl Formula {
-    pub fn eval(self) -> NockResult {
-        match (self.0, self.1) {
-            (Wut, n) => wut(n),
-            (Lus, n) => lus(n),
-            (Tis, n) => tis(n),
-            (Fas, n) => fas(n),
-
-            (Tar, Cell(box a, box Cell(box Cell(box b, box c), box d))) => {
-                let x = try!(Formula(Tar, n![a.clone(), b, c]).eval());
-                let y = try!(Formula(Tar, n![a, d]).eval());
-                Ok(n![x, y])
-            }
-
-            (Tar, Cell(a, box Cell(box Atom(0), b))) => Formula(Fas, Cell(b, a)).eval(),
-
-            (Tar, Cell(_a, box Cell(box Atom(1), box b))) => Ok(b),
-
-            (Tar, Cell(a, box Cell(box Atom(2), box Cell(b, c)))) => {
-                let x = try!(Formula(Tar, Cell(a.clone(), b)).eval());
-                let y = try!(Formula(Tar, Cell(a, c)).eval());
-                Formula(Tar, Cell(box x, box y)).eval()
-            }
-
-            (Tar, Cell(a, box Cell(box Atom(3), b))) => {
-                let x = try!(Formula(Tar, Cell(a, b)).eval());
-                Formula(Wut, x).eval()
-            }
-
-            (Tar, Cell(a, box Cell(box Atom(4), b))) => {
-                let x = try!(Formula(Tar, Cell(a, b)).eval());
-                Formula(Lus, x).eval()
-            }
-
-            (Tar, Cell(a, box Cell(box Atom(5), b))) => {
-                let x = try!(Formula(Tar, Cell(a, b)).eval());
-                Formula(Tis, x).eval()
-            }
-
-            (Tar,
-             Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d))))) =>
-                Formula(Tar,
-                        n![a,
-                           2,
-                           n![0, 1],
-                           2,
-                           n![1, c, d],
-                           n![1, 0],
-                           2,
-                           n![1, 2, 3],
-                           n![1, 0],
-                           4,
-                           4,
-                           b])
-                    .eval(),
-
-            (Tar,
-             Cell(box a, box Cell(box Atom(7), box Cell(box b, box c)))) =>
-                Formula(Tar, n![a, 2, b, 1, c]).eval(),
-
-            (Tar,
-             Cell(box a, box Cell(box Atom(8), box Cell(box b, box c)))) =>
-                Formula(Tar, n![a, 7, n![n![7, n![0, 1], b], 0, 1], c]).eval(),
-
-            (Tar,
-             Cell(box a, box Cell(box Atom(9), box Cell(box b, box c)))) =>
-                Formula(Tar, n![a, 7, c, 2, n![0, 1], 0, b]).eval(),
-
-            (Tar,
-             Cell(box a, box Cell(box Atom(10), box Cell(box Cell(_b, box c), box d)))) =>
-                Formula(Tar, n![a, 8, c, 7, n![0, 3], d]).eval(),
-
-            (Tar,
-             Cell(box a, box Cell(box Atom(10), box Cell(_b, box c)))) =>
-                Formula(Tar, n![a, c]).eval(),
-
-            (Tar, _) => Err(Bottom)
-        }
-    }
-}
-
-pub fn eval(op: Op, noun: Noun) -> NockResult {
-    Formula(op, noun).eval()
-}
 
 pub fn a(val: u64) -> Noun {
     Noun::Atom(val)
@@ -357,7 +237,11 @@ pub fn a(val: u64) -> Noun {
 enum Tok {
     Sel, // [
     Ser, // ]
-    Op(Op),
+    Wut, // ?
+    Lus, // +
+    Tis, // =
+    Fas, // /
+    Tar, // *
     Atom(u64),
 
     Error(String),
@@ -378,7 +262,6 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
 
     fn next(&mut self) -> Option<Tok> {
         use Tok::*;
-        use Op::*;
 
         let peek = self.input.peek().map(|&x| x);
         match peek {
@@ -437,23 +320,23 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
             }
             Some('?') => {
                 self.input.next();
-                Some(Op(Wut))
+                Some(Wut)
             }
             Some('+') => {
                 self.input.next();
-                Some(Op(Lus))
+                Some(Lus)
             }
             Some('=') => {
                 self.input.next();
-                Some(Op(Tis))
+                Some(Tis)
             }
             Some('/') => {
                 self.input.next();
-                Some(Op(Fas))
+                Some(Fas)
             }
             Some('*') => {
                 self.input.next();
-                Some(Op(Tar))
+                Some(Tar)
             }
 
             // XXX: Is there a better way to handle errors?
@@ -477,7 +360,11 @@ fn parse_tokens<I: Iterator<Item = Tok>>(input: &mut I) -> NockResult {
     use Tok::*;
     match input.next() {
         Some(Sel) => parse_cell(input),
-        Some(Op(op)) => parse_formula(op, input),
+        Some(Wut) => wut(try!(parse_noun(input))),
+        Some(Lus) => lus(try!(parse_noun(input))),
+        Some(Tis) => tis(try!(parse_noun(input))),
+        Some(Fas) => fas(try!(parse_noun(input))),
+        Some(Tar) => nock(try!(parse_noun(input))),
         Some(Atom(n)) => Ok(Noun::Atom(n)),
         _ => Err(Bottom),
     }
@@ -506,7 +393,13 @@ fn parse_cell_tail<I: Iterator<Item = Tok>>(input: &mut I) -> Option<NockResult>
     match input.next() {
         Some(Ser) => None,
         Some(Sel) => Some(parse_cell(input)),
-        Some(Op(op)) => Some(parse_formula(op, input)),
+
+        Some(Wut) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(wut(n))),
+        Some(Lus) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(lus(n))),
+        Some(Tis) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(tis(n))),
+        Some(Fas) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(fas(n))),
+        Some(Tar) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(nock(n))),
+
         Some(Atom(n)) => Some(Ok(Noun::Atom(n))),
         _ => Some(Err(Bottom)),
     }
@@ -519,11 +412,6 @@ fn parse_noun<I: Iterator<Item = Tok>>(input: &mut I) -> NockResult {
         Some(Atom(n)) => Ok(Noun::Atom(n)),
         _ => Err(Bottom),
     }
-}
-
-fn parse_formula<I: Iterator<Item = Tok>>(op: Op, input: &mut I) -> NockResult {
-    let noun = try!(parse_noun(input));
-    Formula(op, noun).eval()
 }
 
 // Re-export hack for testing macros.
@@ -568,24 +456,23 @@ mod test {
 
     #[test]
     fn test_eval() {
-        use super::Op::*;
-        use super::{Bottom, a, eval};
+        use super::{Bottom, a, tis, fas, lus};
 
         // Examples from
         // https://github.com/cgyarvin/urbit/blob/master/doc/book/1-nock.markdown
-        assert_eq!(eval(Tis, n![0, 0]), Ok(a(0)));
-        assert_eq!(eval(Tis, n![2, 2]), Ok(a(0)));
-        assert_eq!(eval(Tis, n![0, 1]), Ok(a(1)));
+        assert_eq!(tis(n![0, 0]), Ok(a(0)));
+        assert_eq!(tis(n![2, 2]), Ok(a(0)));
+        assert_eq!(tis(n![0, 1]), Ok(a(1)));
 
-        assert_eq!(eval(Fas, n![1, n![n![4, 5], n![6, 14, 15]]]),
+        assert_eq!(fas(n![1, n![n![4, 5], n![6, 14, 15]]]),
                    Ok(n![n![4, 5], n![6, 14, 15]]));
-        assert_eq!(eval(Fas, n![2, n![n![4, 5], n![6, 14, 15]]]), Ok(n![4, 5]));
-        assert_eq!(eval(Fas, n![3, n![n![4, 5], n![6, 14, 15]]]),
+        assert_eq!(fas(n![2, n![n![4, 5], n![6, 14, 15]]]), Ok(n![4, 5]));
+        assert_eq!(fas(n![3, n![n![4, 5], n![6, 14, 15]]]),
                    Ok(n![6, 14, 15]));
-        assert_eq!(eval(Fas, n![7, n![n![4, 5], n![6, 14, 15]]]),
+        assert_eq!(fas(n![7, n![n![4, 5], n![6, 14, 15]]]),
                    Ok(n![14, 15]));
 
-        assert_eq!(eval(Lus, n![1, 2]), Err(Bottom));
+        assert_eq!(lus(n![1, 2]), Err(Bottom));
     }
 
     #[test]
