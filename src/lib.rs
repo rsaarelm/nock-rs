@@ -153,7 +153,10 @@ impl Formula {
         match (self.0, self.1) {
             (Wut, Cell(_, _)) => Ok(Atom(0)),
             (Wut, Atom(_)) => Ok(Atom(1)),
+
+            // Math
             (Lus, Atom(a)) => Ok(Atom(1 + a)),
+
             (Lus, a) => Err(Formula(Lus, a)),
             (Tis, Cell(a, b)) => Ok(Atom(if a == b { 0 } else { 1 })),
             (Tis, a) => Err(Formula(Tis, a)),
@@ -161,10 +164,13 @@ impl Formula {
             (Fas, Cell(box Atom(1), box a)) => Ok(a),
             (Fas, Cell(box Atom(2), box Cell(box a, _))) => Ok(a),
             (Fas, Cell(box Atom(3), box Cell(_, box b))) => Ok(b),
+
+            // Math
             (Fas, Cell(box Atom(a), b)) => {
-                let x = try!(eval(Fas, Cell(box Atom(a / 2), b)));
+                let x = try!(Formula(Fas, Cell(box Atom(a / 2), b)).eval());
                 eval(Fas, Cell(box Atom(if a % 2 == 0 { 2 } else { 3 }), box x))
             }
+
             (Fas, a) => Err(Formula(Fas, a)),
 
             (Tar, Cell(a, box Cell(box Cell(b, c), d))) => {
@@ -173,7 +179,22 @@ impl Formula {
                 Ok(Cell(box x, box y))
             }
 
-            // TODO: Numbered tar ops.
+            (Tar, Cell(a, box Cell(box Atom(0), b))) =>
+                Formula(Fas, Cell(b, a)).eval(),
+
+            (Tar, Cell(a, box Cell(box Atom(1), box b))) => Ok(b),
+
+            (Tar, Cell(a, box Cell(box Atom(2), box Cell(b, c)))) => {
+                let x = try!(Formula(Tar, Cell(a.clone(), b)).eval());
+                let y = try!(Formula(Tar, Cell(a, c)).eval());
+                Formula(Tar, Cell(box x, box y)).eval()
+            }
+
+            (Tar, Cell(a, box Cell(box Atom(3), b))) => {
+                let x = try!(Formula(Tar, Cell(a, b)).eval());
+                Formula(Wut, x).eval()
+            }
+
 
             (Tar, a) => Err(Formula(Tar, a))
         }
