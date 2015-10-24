@@ -246,6 +246,91 @@ pub fn nock(noun: Noun) -> Result<Noun, Formula> { eval(Wut, noun) }
 
 pub fn a(val: u64) -> Noun { Noun::Atom(val) }
 
+/// Parse tokens
+enum Tok {
+    Sel, // [
+    Ser, // ]
+    Wut, // ?
+    Lus, // +
+    Tis, // =
+    Fas, // /
+    Tar, // *
+    Atom(u64),
+
+    Error(char),
+}
+
+struct Tokenizer<I> {
+    input: I,
+    peek: Option<char>,
+}
+
+impl<I: Iterator<Item=char>> Tokenizer<I> {
+    pub fn new(mut input: I) -> Tokenizer<I> {
+        let peek = input.next();
+        Tokenizer {
+            input: input,
+            peek: peek,
+        }
+    }
+
+    fn advance(&mut self) {
+        self.peek = self.input.next();
+    }
+}
+
+impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
+    type Item = Tok;
+
+    fn next(&mut self) -> Option<Tok> {
+        use Tok::*;
+
+        match self.peek {
+            None => { None }
+            Some(x) if x.is_whitespace() => {
+                self.advance();
+                self.next()
+            }
+
+            // Read as many consecutive digits as there are.
+            Some(x) if x.is_digit(10) => {
+                let mut buf = vec![x];
+                // XXX: Can this be made shorter?
+
+                // TODO: Bignum issues.
+                loop {
+                    self.advance();
+                    if let Some(c) = self.peek {
+                        if c.is_digit(10) {
+                            buf.push(c);
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+
+                Some(Atom(
+                        buf.into_iter().collect::<String>()
+                        .parse::<u64>().unwrap()))
+            }
+
+            Some('[') => { self.advance(); Some(Sel) }
+            Some(']') => { self.advance(); Some(Ser) }
+            Some('?') => { self.advance(); Some(Wut) }
+            Some('+') => { self.advance(); Some(Lus) }
+            Some('=') => { self.advance(); Some(Tis) }
+            Some('/') => { self.advance(); Some(Fas) }
+            Some('*') => { self.advance(); Some(Tar) }
+
+            // XXX: Is there a better way to handle errors?
+            Some(c) => { self.advance(); Some(Error(c)) }
+        }
+    }
+}
+
+
 // Re-export hack for testing macros.
 mod nock {
     pub use Noun;
