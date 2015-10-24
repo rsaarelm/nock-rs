@@ -2,6 +2,9 @@
 
 #![feature(box_syntax, box_patterns)]
 
+#[macro_use]
+extern crate log;
+
 use std::fmt;
 use std::iter;
 
@@ -163,6 +166,7 @@ use Noun::*;
 
 impl Formula {
     pub fn eval(self) -> Result<Noun, Formula> {
+        info!("Evaluating {}", self.0);
         match (self.0, self.1) {
             (Wut, Cell(_, _)) => Ok(Atom(0)),
             (Wut, Atom(_)) => Ok(Atom(1)),
