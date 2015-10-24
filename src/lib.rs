@@ -330,9 +330,9 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
                         // Take in digits.
                         if c.is_digit(10) {
                             buf.push(c);
-                            // Whitespace or ser can terminate the digit
-                            // sequence.
-                        } else if c == ']' || c.is_whitespace() {
+                            // Whitespace or cell brackets can terminate the
+                            // digit sequence.
+                        } else if c == '[' || c == ']' || c.is_whitespace() {
                             break;
                             // Anything else in the middle of the digit sequence
                             // is an error.
