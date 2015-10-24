@@ -171,70 +171,83 @@ fn fas(noun: Noun) -> NockResult {
     }
 }
 
-fn tar(noun: Noun) -> NockResult {
+fn tar(mut noun: Noun) -> NockResult {
     // FIXME: Rust won't pattern-match the complex Cell expressions if they're
     // the top-level expression but will handle fine if they're wrapped in a
     // trivial tuple.
-    info!("*{}", noun);
-    match ((), noun) {
-        ((), Cell(box a, box Cell(box Cell(box b, box c), box d))) => {
-            let x = try!(tar(n![a.clone(), b, c]));
-            let y = try!(tar(n![a, d]));
-            Ok(n![x, y])
+    loop {
+        info!("*{}", noun);
+        match ((), noun) {
+            ((), Cell(box a, box Cell(box Cell(box b, box c), box d))) => {
+                let x = try!(tar(n![a.clone(), b, c]));
+                let y = try!(tar(n![a, d]));
+                return Ok(n![x, y]);
+            }
+
+            ((), Cell(a, box Cell(box Atom(0), b))) => return fas(Cell(b, a)),
+
+            ((), Cell(_a, box Cell(box Atom(1), box b))) => return Ok(b),
+
+            ((), Cell(a, box Cell(box Atom(2), box Cell(b, c)))) => {
+                let x = try!(tar(Cell(a.clone(), b)));
+                let y = try!(tar(Cell(a, c)));
+                noun = Cell(box x, box y);
+            }
+
+            ((), Cell(a, box Cell(box Atom(3), b))) => {
+                return wut(try!(tar(Cell(a, b))));
+            }
+
+            ((), Cell(a, box Cell(box Atom(4), b))) => {
+                return lus(try!(tar(Cell(a, b))));
+            }
+
+            ((), Cell(a, box Cell(box Atom(5), b))) => {
+                return tis(try!(tar(Cell(a, b))));
+            }
+
+            ((),
+             Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d))))) =>
+                noun = n![a,
+                          2,
+                          n![0, 1],
+                          2,
+                          n![1, c, d],
+                          n![1, 0],
+                          2,
+                          n![1, 2, 3],
+                          n![1, 0],
+                          4,
+                          4,
+                          b],
+
+            ((),
+             Cell(box a, box Cell(box Atom(7), box Cell(box b, box c)))) =>
+                noun = n![a, 2, b, 1, c],
+
+            ((),
+             Cell(box a, box Cell(box Atom(8), box Cell(box b, box c)))) =>
+                noun = n![a, 7, n![n![7, n![0, 1], b], 0, 1], c],
+
+            ((),
+             Cell(box a, box Cell(box Atom(9), box Cell(box b, box c)))) =>
+                noun = n![a, 7, c, 2, n![0, 1], 0, b],
+
+            ((),
+             Cell(box a, box Cell(box Atom(10), box Cell(box Cell(_b, box c), box d)))) =>
+                noun = n![a, 8, c, 7, n![0, 3], d],
+
+            ((), Cell(box a, box Cell(box Atom(10), box Cell(_b, box c)))) => noun = n![a, c],
+
+            _ => return Err(Bottom),
         }
-
-        ((), Cell(a, box Cell(box Atom(0), b))) => fas(Cell(b, a)),
-
-        ((), Cell(_a, box Cell(box Atom(1), box b))) => Ok(b),
-
-        ((), Cell(a, box Cell(box Atom(2), box Cell(b, c)))) => {
-            let x = try!(tar(Cell(a.clone(), b)));
-            let y = try!(tar(Cell(a, c)));
-            tar(Cell(box x, box y))
-        }
-
-        ((), Cell(a, box Cell(box Atom(3), b))) => {
-            let x = try!(tar(Cell(a, b)));
-            wut(x)
-        }
-
-        ((), Cell(a, box Cell(box Atom(4), b))) => {
-            let x = try!(tar(Cell(a, b)));
-            lus(x)
-        }
-
-        ((), Cell(a, box Cell(box Atom(5), b))) => {
-            let x = try!(tar(Cell(a, b)));
-            tis(x)
-        }
-
-        ((),
-         Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d))))) =>
-            tar(n![a, 2, n![0, 1], 2, n![1, c, d], n![1, 0], 2, n![1, 2, 3], n![1, 0], 4, 4, b]),
-
-        ((),
-         Cell(box a, box Cell(box Atom(7), box Cell(box b, box c)))) => tar(n![a, 2, b, 1, c]),
-
-        ((),
-         Cell(box a, box Cell(box Atom(8), box Cell(box b, box c)))) =>
-            tar(n![a, 7, n![n![7, n![0, 1], b], 0, 1], c]),
-
-        ((),
-         Cell(box a, box Cell(box Atom(9), box Cell(box b, box c)))) =>
-            tar(n![a, 7, c, 2, n![0, 1], 0, b]),
-
-        ((),
-         Cell(box a, box Cell(box Atom(10), box Cell(box Cell(_b, box c), box d)))) =>
-            tar(n![a, 8, c, 7, n![0, 3], d]),
-
-        ((), Cell(box a, box Cell(box Atom(10), box Cell(_b, box c)))) => tar(n![a, c]),
-
-        _ => Err(Bottom),
     }
 }
 
 /// Evaluate a Nock noun into its product.
-pub fn nock(noun: Noun) -> NockResult { tar(noun) }
+pub fn nock(noun: Noun) -> NockResult {
+    tar(noun)
+}
 
 /// Parse tokens
 enum Tok {
@@ -459,7 +472,8 @@ mod test {
         use super::Noun::{self, Atom};
 
         assert_eq!(Atom(1), vec![Atom(1)].into_iter().collect::<Noun>());
-        assert_eq!(n![1, 2], vec![Atom(1), Atom(2)].into_iter().collect::<Noun>());
+        assert_eq!(n![1, 2],
+                   vec![Atom(1), Atom(2)].into_iter().collect::<Noun>());
         assert_eq!(n![1, 2, 3],
                    vec![Atom(1), Atom(2), Atom(3)].into_iter().collect::<Noun>());
         assert_eq!(n![1, n![2, 3]],
@@ -528,12 +542,14 @@ mod test {
         // Operator 10: Hint
 
         // Subtraction
-	    produces("*[43 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]", "42");
+        produces("*[43 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
+                 "42");
     }
 
     #[test]
     fn test_stack() {
-	    produces("*[1000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]", "999");
+        produces("*[1000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
+                 "999");
     }
 
     #[test]
