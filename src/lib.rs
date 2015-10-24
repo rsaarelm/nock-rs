@@ -163,8 +163,12 @@ fn fas(noun: Noun) -> NockResult {
         Cell(box Atom(3), box Cell(_, box b)) => Ok(b),
 
         Cell(box Atom(a), b) => {
-            let x = try!(fas(Cell(box Atom(a / 2), b)));
-            fas(Cell(box Atom(2 + a % 2), box x))
+            if a <= 3 {
+                Err(Bottom)
+            } else {
+                let x = try!(fas(Cell(box Atom(a / 2), b)));
+                fas(Cell(box Atom(2 + a % 2), box x))
+            }
         }
 
         _ => Err(Bottom),
