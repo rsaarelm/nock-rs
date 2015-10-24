@@ -526,6 +526,14 @@ mod test {
         // Operator 9: Call
 
         // Operator 10: Hint
+
+        // Subtraction
+	    produces("*[43 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]", "42");
+    }
+
+    #[test]
+    fn test_stack() {
+	    produces("*[1000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]", "999");
     }
 
     #[test]
