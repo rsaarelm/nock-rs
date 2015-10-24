@@ -4,6 +4,7 @@
 
 use std::fmt;
 use std::str;
+use std::iter;
 
 /// A Nock noun, the basic unit of representation.
 ///
@@ -256,22 +257,15 @@ enum Tok {
     Error(String),
 }
 
-struct Tokenizer<I> {
-    input: I,
-    peek: Option<char>,
+struct Tokenizer<I: Iterator> {
+    input: iter::Peekable<I>,
 }
 
 impl<I: Iterator<Item=char>> Tokenizer<I> {
     pub fn new(mut input: I) -> Tokenizer<I> {
-        let peek = input.next();
         Tokenizer {
-            input: input,
-            peek: peek,
+            input: input.peekable(),
         }
-    }
-
-    fn advance(&mut self) {
-        self.peek = self.input.next();
     }
 }
 
@@ -282,10 +276,11 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
         use Tok::*;
         use Op::*;
 
-        match self.peek {
+        let peek = self.input.peek().map(|&x| x);
+        match peek {
             None => { None }
             Some(x) if x.is_whitespace() => {
-                self.advance();
+                self.input.next();
                 self.next()
             }
 
@@ -296,8 +291,8 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
 
                 // TODO: Bignum issues.
                 loop {
-                    self.advance();
-                    if let Some(c) = self.peek {
+                    self.input.next();
+                    if let Some(&c) = self.input.peek() {
                         // Take in digits.
                         if c.is_digit(10) {
                             buf.push(c);
@@ -321,16 +316,16 @@ impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
                         .parse::<u64>().unwrap()))
             }
 
-            Some('[') => { self.advance(); Some(Sel) }
-            Some(']') => { self.advance(); Some(Ser) }
-            Some('?') => { self.advance(); Some(Op(Wut)) }
-            Some('+') => { self.advance(); Some(Op(Lus)) }
-            Some('=') => { self.advance(); Some(Op(Tis)) }
-            Some('/') => { self.advance(); Some(Op(Fas)) }
-            Some('*') => { self.advance(); Some(Op(Tar)) }
+            Some('[') => { self.input.next(); Some(Sel) }
+            Some(']') => { self.input.next(); Some(Ser) }
+            Some('?') => { self.input.next(); Some(Op(Wut)) }
+            Some('+') => { self.input.next(); Some(Op(Lus)) }
+            Some('=') => { self.input.next(); Some(Op(Tis)) }
+            Some('/') => { self.input.next(); Some(Op(Fas)) }
+            Some('*') => { self.input.next(); Some(Op(Tar)) }
 
             // XXX: Is there a better way to handle errors?
-            Some(c) => { self.advance(); Some(Error(Some(c).into_iter().collect())) }
+            Some(c) => { self.input.next(); Some(Error(Some(c).into_iter().collect())) }
         }
     }
 }
