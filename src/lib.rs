@@ -199,26 +199,27 @@ fn tar(mut noun: Noun) -> NockResult {
                 return Ok(n![x, y]);
             }
 
-            ((), Cell(a, box Cell(box Atom(0), b))) => return fas(Cell(b, a)),
+            ((), Cell(box a, box Cell(box Atom(0), box b))) => return fas(n![b, a]),
 
             ((), Cell(_a, box Cell(box Atom(1), box b))) => return Ok(b),
 
-            ((), Cell(a, box Cell(box Atom(2), box Cell(b, c)))) => {
-                let x = try!(tar(Cell(a.clone(), b)));
-                let y = try!(tar(Cell(a, c)));
-                noun = Cell(box x, box y);
+            ((),
+             Cell(box a, box Cell(box Atom(2), box Cell(box b, box c)))) => {
+                let x = try!(tar(n![a.clone(), b]));
+                let y = try!(tar(n![a, c]));
+                noun = n![x, y];
             }
 
-            ((), Cell(a, box Cell(box Atom(3), b))) => {
-                return wut(try!(tar(Cell(a, b))));
+            ((), Cell(box a, box Cell(box Atom(3), box b))) => {
+                return wut(try!(tar(n![a, b])));
             }
 
-            ((), Cell(a, box Cell(box Atom(4), b))) => {
-                return lus(try!(tar(Cell(a, b))));
+            ((), Cell(box a, box Cell(box Atom(4), box b))) => {
+                return lus(try!(tar(n![a, b])));
             }
 
-            ((), Cell(a, box Cell(box Atom(5), b))) => {
-                return tis(try!(tar(Cell(a, b))));
+            ((), Cell(box a, box Cell(box Atom(5), box b))) => {
+                return tis(try!(tar(n![a, b])));
             }
 
             ((),
