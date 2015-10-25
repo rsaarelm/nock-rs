@@ -93,6 +93,7 @@ impl fmt::Debug for Noun {
 /// Macro for noun literals.
 ///
 /// Rust n![1, 2, 3] corresponds to Nock [1 2 3]
+#[macro_export]
 macro_rules! n {
     [$x:expr, $y:expr] => { ::nock::Noun::Cell(box ::nock::Noun::new($x), box ::nock::Noun::new($y)) };
     [$x:expr, $y:expr, $($ys:expr),+] => { ::nock::Noun::Cell(box ::nock::Noun::new($x), box n![$y, $($ys),+]) };
