@@ -49,7 +49,7 @@ impl iter::FromIterator<Noun> for Noun {
 impl fmt::Display for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Atom(ref n) => write!(f, "{}", n),
+            &Atom(ref n) => return dot_separators(f, &n),
             &Cell(ref a, ref b) => {
                 try!(write!(f, "[{} ", a));
                 // List pretty-printer.
@@ -61,13 +61,27 @@ impl fmt::Display for Noun {
                             cur = &b;
                         }
                         &box Atom(ref n) => {
-                            return write!(f, "{}]", n);
+                            try!(dot_separators(f, &n));
+                            return write!(f, "]");
                         }
                     }
                 }
             }
         }
+
+        fn dot_separators<T: fmt::Display>(f: &mut fmt::Formatter, item: &T) -> fmt::Result {
+            let s = format!("{}", item);
+            let phase = s.len() % 3;
+            for (i, c) in s.chars().enumerate() {
+                if i > 0 && i % 3 == phase {
+                    try!(write!(f, "."));
+                }
+                try!(write!(f, "{}", c));
+            }
+            Ok(())
+        }
     }
+
 }
 
 impl fmt::Debug for Noun {
@@ -482,6 +496,10 @@ mod test {
 
     #[test]
     fn test_pseudocode() {
+        produces("10.000", "10.000");
+        produces("100.000", "100.000");
+        produces("1.000.000", "1.000.000");
+
         produces("?[5 8]", "0");
         produces("?10", "1");
 
