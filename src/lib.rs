@@ -191,7 +191,7 @@ fn tar(mut noun: Noun) -> NockResult {
     // the top-level expression but will handle fine if they're wrapped in a
     // trivial tuple.
     loop {
-        info!("*{}", noun);
+        trace!("*{}", noun);
         match ((), noun) {
             ((), Cell(box a, box Cell(box Cell(box b, box c), box d))) => {
                 let x = try!(tar(n![a.clone(), b, c]));
