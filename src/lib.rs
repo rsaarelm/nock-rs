@@ -432,15 +432,14 @@ mod test {
 
     #[test]
     fn test_from_iter() {
-        use super::Noun::{self, Atom};
+        use super::Noun::Atom;
 
-        assert_eq!(Atom(1), vec![Atom(1)].into_iter().collect::<Noun>());
-        assert_eq!(n![1, 2],
-                   vec![Atom(1), Atom(2)].into_iter().collect::<Noun>());
+        assert_eq!(Atom(1), vec![Atom(1)].into_iter().collect());
+        assert_eq!(n![1, 2], vec![Atom(1), Atom(2)].into_iter().collect());
         assert_eq!(n![1, 2, 3],
-                   vec![Atom(1), Atom(2), Atom(3)].into_iter().collect::<Noun>());
+                   vec![Atom(1), Atom(2), Atom(3)].into_iter().collect());
         assert_eq!(n![1, n![2, 3]],
-                   vec![Atom(1), n![2, 3]].into_iter().collect::<Noun>());
+                   vec![Atom(1), n![2, 3]].into_iter().collect());
     }
 
     #[test]
@@ -506,9 +505,9 @@ mod test {
 
         // Fibonacci numbers,
         // https://groups.google.com/forum/#!topic/urbit-dev/K7QpBge30JI
-        produces("[10 [8 [1 [1 1]] [8 [1 0] [8 [1 [6 [5 [0 15] [4 0 6]] [0 28] [9 2 [[0 2] [4 0 \
-                  6] [[0 29] [7 [0 14] [8 [1 0] [8 [1 [6 [5 [0 14] [0 6]] [0 15] [9 2 [[0 2] [4 \
-                  0 6] [0 14] [4 0 15]]]]] [9 2 0 1]]]]] [0 15]]]]] [9 2 0 1]]]]]",
+        produces("[10 8 [1 1 1] 8 [1 0] 8 [1 6 [5 [0 15] 4 0 6] [0 28] 9 2 [0 2] [4 0 6] [[0 29] \
+                  7 [0 14] 8 [1 0] 8 [1 6 [5 [0 14] 0 6] [0 15] 9 2 [0 2] [4 0 6] [0 14] 4 0 15] \
+                  9 2 0 1] 0 15] 9 2 0 1]",
                  "55");
     }
 
