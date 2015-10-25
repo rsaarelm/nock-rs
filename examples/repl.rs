@@ -3,7 +3,6 @@ extern crate nock;
 
 use std::io::{self, BufRead, Write};
 use log::{LogRecord, LogLevel, LogMetadata, LogLevelFilter, SetLoggerError};
-use nock::parse;
 
 struct SimpleLogger;
 
@@ -27,7 +26,7 @@ pub fn init_log() -> Result<(), SetLoggerError> {
 }
 
 fn main() {
-    //init_log().unwrap();
+    // init_log().unwrap();
 
     println!("Welcome to nock-rs");
     loop {
@@ -36,8 +35,13 @@ fn main() {
         io::stdout().flush().expect("IO error");
         match io::stdin().read_line(&mut input) {
             Ok(_) => {
-                match parse(&input) {
-                    Ok(noun) => println!("{}", noun),
+                match input.parse() {
+                    Ok(noun) => {
+                        match nock::nock(noun) {
+                            Ok(eval) => println!("{}", eval),
+                            Err(_) => println!("Eval error"),
+                        }
+                    }
                     Err(_) => println!("Syntax error"),
                 }
             }

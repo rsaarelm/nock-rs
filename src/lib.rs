@@ -7,6 +7,7 @@ extern crate log;
 
 use std::fmt;
 use std::iter;
+use std::str;
 
 /// A Nock noun, the basic unit of representation.
 ///
@@ -87,6 +88,109 @@ impl fmt::Display for Noun {
 impl fmt::Debug for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self)
+    }
+}
+
+pub struct ParseError;
+
+impl str::FromStr for Noun {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, ParseError> {
+        return parse(&mut s.chars().peekable());
+
+        fn parse<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>) -> Result<Noun, ParseError> {
+            eat_space(input);
+            match input.peek().map(|&x| x) {
+                Some(c) if c.is_digit(10) => parse_atom(input),
+                Some(c) if c == '[' => parse_cell(input),
+                _ => Err(ParseError),
+            }
+        }
+
+        /// Parse an atom, a positive integer.
+        fn parse_atom<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>)
+                                                -> Result<Noun, ParseError> {
+            let mut buf = Vec::new();
+
+            loop {
+                if let Some(&c) = input.peek() {
+                    if c.is_digit(10) {
+                        input.next();
+                        buf.push(c);
+                    } else if c == '.' {
+                        // Dot is used as a sequence separator (*not* as
+                        // decimal point). It can show up anywhere in the
+                        // digit sequence and will be ignored.
+                        input.next();
+                    } else if c == '[' || c == ']' || c.is_whitespace() {
+                        // Whitespace or cell brackets can terminate the
+                        // digit sequence.
+                        break;
+                    } else {
+                        // Anything else in the middle of the digit sequence
+                        // is an error.
+                        return Err(ParseError);
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            if buf.len() == 0 {
+                return Err(ParseError);
+            }
+
+            Ok(Noun::Atom(buf.into_iter()
+                             .collect::<String>()
+                             .parse()
+                             .expect("Failed to parse atom")))
+        }
+
+        /// Parse a cell, a bracketed pair of nouns.
+        ///
+        /// For additional complication, cells can have the form [a b c] which
+        /// parses to [a [b c]].
+        fn parse_cell<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>)
+                                                -> Result<Noun, ParseError> {
+            let mut elts = Vec::new();
+
+            if input.next() != Some('[') {
+                panic!("Bad cell start");
+            }
+
+            // A cell must have at least two nouns in it.
+            elts.push(try!(parse(input)));
+            elts.push(try!(parse(input)));
+
+            // It can have further trailing nouns.
+            loop {
+                eat_space(input);
+                match input.peek().map(|&x| x) {
+                    Some(c) if c.is_digit(10) => elts.push(try!(parse_atom(input))),
+                    Some(c) if c == '[' => elts.push(try!(parse_cell(input))),
+                    Some(c) if c == ']' => {
+                        input.next();
+                        break;
+                    }
+                    _ => return Err(ParseError),
+                }
+            }
+
+            Ok(elts.into_iter().collect())
+        }
+
+        fn eat_space<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>) {
+            loop {
+                match input.peek().map(|&x| x) {
+                    Some(c) if c.is_whitespace() => {
+                        input.next();
+                    }
+                    _ => return,
+                }
+            }
+        }
+
     }
 }
 
@@ -265,188 +369,6 @@ pub fn nock(noun: Noun) -> NockResult {
     tar(noun)
 }
 
-/// Parse tokens
-enum Tok {
-    Sel, // [
-    Ser, // ]
-    Wut, // ?
-    Lus, // +
-    Tis, // =
-    Fas, // /
-    Tar, // *
-    Atom(u64),
-
-    Error(String),
-}
-
-struct Tokenizer<I: Iterator> {
-    input: iter::Peekable<I>,
-}
-
-impl<I: Iterator<Item=char>> Tokenizer<I> {
-    pub fn new(input: I) -> Tokenizer<I> {
-        Tokenizer { input: input.peekable() }
-    }
-}
-
-impl<I: Iterator<Item=char>> Iterator for Tokenizer<I> {
-    type Item = Tok;
-
-    fn next(&mut self) -> Option<Tok> {
-        use Tok::*;
-
-        let peek = self.input.peek().map(|&x| x);
-        match peek {
-            None => {
-                None
-            }
-            Some(x) if x.is_whitespace() => {
-                self.input.next();
-                self.next()
-            }
-
-            // Read as many consecutive digits as there are.
-            Some(x) if x.is_digit(10) => {
-                let mut buf = vec![x];
-                // XXX: Can this be made shorter?
-
-                // TODO: Bignum issues.
-                loop {
-                    self.input.next();
-                    if let Some(&c) = self.input.peek() {
-                        // Take in digits.
-                        if c.is_digit(10) {
-                            buf.push(c);
-                        } else if c == '.' {
-                            // Dot is used as a sequence separator (*not* as
-                            // decimal point). It can show up anywhere in the
-                            // digit sequence and will be ignored.
-                        } else if c == '[' || c == ']' || c.is_whitespace() {
-                            // Whitespace or cell brackets can terminate the
-                            // digit sequence.
-                            break;
-                        } else {
-                            // Anything else in the middle of the digit sequence
-                            // is an error.
-                            buf.push(c);
-                            return Some(Error(buf.into_iter().collect()));
-                        }
-                    } else {
-                        break;
-                    }
-                }
-
-                Some(Atom(buf.into_iter()
-                             .collect::<String>()
-                             .parse::<u64>()
-                             .unwrap()))
-            }
-
-            Some('[') => {
-                self.input.next();
-                Some(Sel)
-            }
-            Some(']') => {
-                self.input.next();
-                Some(Ser)
-            }
-            Some('?') => {
-                self.input.next();
-                Some(Wut)
-            }
-            Some('+') => {
-                self.input.next();
-                Some(Lus)
-            }
-            Some('=') => {
-                self.input.next();
-                Some(Tis)
-            }
-            Some('/') => {
-                self.input.next();
-                Some(Fas)
-            }
-            Some('*') => {
-                self.input.next();
-                Some(Tar)
-            }
-
-            // XXX: Is there a better way to handle errors?
-            Some(c) => {
-                self.input.next();
-                Some(Error(Some(c).into_iter().collect()))
-            }
-        }
-    }
-}
-
-/// Parse a Nock string.
-pub fn parse(input: &str) -> NockResult {
-    parse_tokens(&mut Tokenizer::new(input.chars()))
-}
-
-/// Parses either a noun or a formula.
-///
-/// Formulas will be evaluated on the spot. Failure to evaluate the formula
-/// will result an error.
-fn parse_tokens<I: Iterator<Item = Tok>>(input: &mut I) -> NockResult {
-    use Tok::*;
-    match input.next() {
-        Some(Sel) => parse_cell(input),
-        Some(Wut) => wut(try!(parse_noun(input))),
-        Some(Lus) => lus(try!(parse_noun(input))),
-        Some(Tis) => tis(try!(parse_noun(input))),
-        Some(Fas) => fas(try!(parse_noun(input))),
-        Some(Tar) => tar(try!(parse_noun(input))),
-        Some(Atom(n)) => Ok(Noun::Atom(n)),
-        _ => Err(Bottom),
-    }
-}
-
-/// Parses a cell, must have at least two nouns inside.
-fn parse_cell<I: Iterator<Item = Tok>>(input: &mut I) -> NockResult {
-    let mut elts = Vec::new();
-    // Must have at least two formulas/nouns inside.
-    elts.push(try!(parse_tokens(input)));
-    elts.push(try!(parse_tokens(input)));
-    // Then can have zero to many further tail nouns.
-    loop {
-        match parse_cell_tail(input) {
-            Some(n) => elts.push(try!(n)),
-            None => break,
-        }
-    }
-
-    Ok(elts.into_iter().collect())
-}
-
-/// Parses either an end of cell or a further element.
-fn parse_cell_tail<I: Iterator<Item = Tok>>(input: &mut I) -> Option<NockResult> {
-    use Tok::*;
-    match input.next() {
-        Some(Ser) => None,
-        Some(Sel) => Some(parse_cell(input)),
-
-        Some(Wut) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(wut(n))),
-        Some(Lus) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(lus(n))),
-        Some(Tis) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(tis(n))),
-        Some(Fas) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(fas(n))),
-        Some(Tar) => parse_noun(input).ok().map_or(Some(Err(Bottom)), |n| Some(tar(n))),
-
-        Some(Atom(n)) => Some(Ok(Noun::Atom(n))),
-        _ => Some(Err(Bottom)),
-    }
-}
-
-fn parse_noun<I: Iterator<Item = Tok>>(input: &mut I) -> NockResult {
-    use Tok::*;
-    match input.next() {
-        Some(Sel) => parse_cell(input),
-        Some(Atom(n)) => Ok(Noun::Atom(n)),
-        _ => Err(Bottom),
-    }
-}
-
 // Re-export hack for testing macros.
 mod nock {
     pub use Noun;
@@ -454,13 +376,18 @@ mod nock {
 
 #[cfg(test)]
 mod test {
-    fn produces(input: &str, output: &str) {
-        assert_eq!(format!("{}", super::parse(input).expect("Syntax error")),
+    fn parses(input: &str, output: super::Noun) {
+        assert_eq!(input.parse::<super::Noun>().ok().expect("Parsing failed"),
                    output);
     }
 
-    fn fails(input: &str) {
-        assert!(super::parse(input).is_err());
+    fn produces(input: &str, output: &str) {
+        use super::nock;
+        assert_eq!(format!("{}",
+                           nock(input.parse().ok().expect("Parsing failed"))
+                               .ok()
+                               .expect("Eval failed")),
+                   output);
     }
 
     #[test]
@@ -497,63 +424,57 @@ mod test {
     }
 
     #[test]
-    fn test_pseudocode() {
-        produces("10.000", "10.000");
-        produces("100.000", "100.000");
-        produces("1.000.000", "1.000.000");
+    fn test_parser() {
+        use super::Noun::{self, Atom};
 
-        produces("?[5 8]", "0");
-        produces("?10", "1");
+        assert!("".parse::<Noun>().is_err());
+        assert!("12ab".parse::<Noun>().is_err());
+        assert!("[]".parse::<Noun>().is_err());
+        assert!("[1]".parse::<Noun>().is_err());
 
-        produces("=[0 0]", "0");
-        produces("=[2 2]", "0");
-        produces("=[0 1]", "1");
-        fails("=3");
+        parses("0", Atom(0));
+        parses("1", Atom(1));
+        parses("1.000.000", Atom(1_000_000));
 
-        produces("/[1 [97 2] [1 42 0]]", "[[97 2] 1 42 0]");
-        produces("/[2 [97 2] [1 42 0]]", "[97 2]");
-
-        produces("/[3 [97 2] [1 42 0]]", "[1 42 0]");
-        produces("/[6 [97 2] [1 42 0]]", "1");
-        produces("/[7 [97 2] [1 42 0]]", "[42 0]");
-        fails("/[3 8]");
-
-        produces("+4", "5");
-        fails("+[1 2]");
+        parses("[1 2]", n![1, 2]);
+        parses("[1 2 3]", n![1, 2, 3]);
+        parses("[1 [2 3]]", n![1, 2, 3]);
+        parses("[[1 2] 3]", n![n![1, 2], 3]);
     }
 
     #[test]
     fn test_nock() {
-        produces("*[42 [4 0 1] [3 0 1]]", "[43 1]");
+        produces("[42 [4 0 1] [3 0 1]]", "[43 1]");
 
         // Operator 0: Axis
-        produces("*[[19 42] [0 3] 0 2]", "[42 19]");
-        produces("*[[19 42] 0 3]", "42");
+        produces("[[19 42] [0 3] 0 2]", "[42 19]");
+        produces("[[19 42] 0 3]", "42");
+        produces("[[[97 2] [1 42 0]] 0 7]", "[42 0]");
 
         // Operator 1: Just
-        produces("*[42 1 57]", "57");
+        produces("[42 1 57]", "57");
 
         // Operator 2: Fire
-        produces("*[[[40 43] [4 0 1]] [2 [0 4] [0 3]]]", "41");
-        produces("*[[[40 43] [4 0 1]] [2 [0 5] [0 3]]]", "44");
-        produces("*[77 [2 [1 42] [1 1 153 218]]]", "[153 218]");
+        produces("[[[40 43] [4 0 1]] [2 [0 4] [0 3]]]", "41");
+        produces("[[[40 43] [4 0 1]] [2 [0 5] [0 3]]]", "44");
+        produces("[77 [2 [1 42] [1 1 153 218]]]", "[153 218]");
 
         // Operator 3: Depth
-        produces("*[1 3 0 1]", "1");
-        produces("*[[2 3] 3 0 1]", "0");
+        produces("[1 3 0 1]", "1");
+        produces("[[2 3] 3 0 1]", "0");
 
         // Operator 4: Bump
-        produces("*[57 4 0 1]", "58");
+        produces("[57 4 0 1]", "58");
 
         // Operator 5: Same
-        produces("*[[1 1] 5 0 1]", "0");
-        produces("*[[1 2] 5 0 1]", "1");
+        produces("[[1 1] 5 0 1]", "0");
+        produces("[[1 2] 5 0 1]", "1");
 
         // Operator 6: If
-        produces("*[[40 43] [6 [3 0 1] [4 0 2] [4 0 1]]]", "41");
+        produces("[[40 43] [6 [3 0 1] [4 0 2] [4 0 1]]]", "41");
 
         // Operator 7: Compose
-        produces("*[[42 44] [7 [4 0 3] [3 0 1]]]", "1");
+        produces("[[42 44] [7 [4 0 3] [3 0 1]]]", "1");
 
         // Operator 8: Push
 
@@ -561,11 +482,11 @@ mod test {
 
         // Operator 10: Hint
 
-        produces("*[[132 19] [10 37 [4 0 3]]]", "20");
+        produces("[[132 19] [10 37 [4 0 3]]]", "20");
 
         // Fibonacci numbers,
         // https://groups.google.com/forum/#!topic/urbit-dev/K7QpBge30JI
-        produces("*[10 [8 [1 [1 1]] [8 [1 0] [8 [1 [6 [5 [0 15] [4 0 6]] [0 28]
+        produces("[10 [8 [1 [1 1]] [8 [1 0] [8 [1 [6 [5 [0 15] [4 0 6]] [0 28]
                  \
                   [9 2 [[0 2] [4 0 6] [[0 29] [7 [0 14] [8 [1 0]
                  [8 [1 [6 [5 [0 \
@@ -579,21 +500,7 @@ mod test {
     fn test_stack() {
         // Subtraction. Tests tail call elimination, will trash stack if it
         // doesn't work.
-        produces("*[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
+        produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
                  "9.999");
-    }
-
-    #[test]
-    fn test_parse_noun() {
-        use super::parse;
-
-        assert!(parse("").is_err());
-        assert!(parse("[]").is_err());
-        assert!(parse("[1]").is_err());
-        assert!(parse("[x y]").is_err());
-        assert_eq!(parse("[1 2]"), Ok(n![1, 2]));
-        assert_eq!(parse("[1 2 3]"), Ok(n![1, 2, 3]));
-        assert_eq!(parse("[[1 2] 3]"), Ok(n![n![1, 2], 3]));
-        assert_eq!(parse("[1 [2 3]]"), Ok(n![1, n![2, 3]]));
     }
 }
