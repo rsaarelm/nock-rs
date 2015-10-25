@@ -19,12 +19,6 @@ pub enum Noun {
     Cell(Box<Noun>, Box<Noun>),
 }
 
-impl Noun {
-    pub fn new<T: Into<Noun>>(val: T) -> Noun {
-        val.into()
-    }
-}
-
 impl Into<Noun> for u64 {
     fn into(self) -> Noun {
         Noun::Atom(self)
@@ -199,8 +193,8 @@ impl str::FromStr for Noun {
 /// Rust n![1, 2, 3] corresponds to Nock [1 2 3]
 #[macro_export]
 macro_rules! n {
-    [$x:expr, $y:expr] => { ::nock::Noun::Cell(box ::nock::Noun::new($x), box ::nock::Noun::new($y)) };
-    [$x:expr, $y:expr, $($ys:expr),+] => { ::nock::Noun::Cell(box ::nock::Noun::new($x), box n![$y, $($ys),+]) };
+    [$x:expr, $y:expr] => { ::nock::Noun::Cell(box $x.into(), box $y.into()) };
+    [$x:expr, $y:expr, $($ys:expr),+] => { ::nock::Noun::Cell(box $x.into(), box n![$y, $($ys),+]) };
 }
 
 use Noun::*;
