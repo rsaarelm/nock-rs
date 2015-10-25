@@ -559,15 +559,26 @@ mod test {
 
         // Operator 10: Hint
 
-        // Subtraction
-        produces("*[43 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
-                 "42");
+        produces("*[[132 19] [10 37 [4 0 3]]]", "20");
+
+        // Fibonacci numbers,
+        // https://groups.google.com/forum/#!topic/urbit-dev/K7QpBge30JI
+        produces("*[10 [8 [1 [1 1]] [8 [1 0] [8 [1 [6 [5 [0 15] [4 0 6]] [0 28]
+                 \
+                  [9 2 [[0 2] [4 0 6] [[0 29] [7 [0 14] [8 [1 0]
+                 [8 [1 [6 [5 [0 \
+                  14] [0 6]] [0 15] [9 2 [[0 2] [4 0 6] [0 14] [4 0 15]]]]]
+                 [9 \
+                  2 0 1]]]]] [0 15]]]]] [9 2 0 1]]]]]",
+                 "55");
     }
 
     #[test]
     fn test_stack() {
-        produces("*[1000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
-                 "999");
+        // Subtraction. Tests tail call elimination, will trash stack if it
+        // doesn't work.
+        produces("*[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
+                 "9.999");
     }
 
     #[test]
