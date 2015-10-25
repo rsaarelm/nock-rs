@@ -1,3 +1,51 @@
+//! Implementation of the Nock virtual machine.
+//!
+//! See http://urbit.org/docs/theory/whitepaper for more information on Nock.
+//!
+//! The Nock spec:
+//!
+//! ```notrust
+//! A noun is an atom or a cell.
+//! An atom is a natural number.
+//! A cell is an ordered pair of nouns.
+//!
+//! nock(a)          *a
+//! [a b c]          [a [b c]]
+//!
+//! ?[a b]           0
+//! ?a               1
+//! +[a b]           +[a b]
+//! +a               1 + a
+//! =[a a]           0
+//! =[a b]           1
+//! =a               =a
+//!
+//! /[1 a]           a
+//! /[2 a b]         a
+//! /[3 a b]         b
+//! /[(a + a) b]     /[2 /[a b]]
+//! /[(a + a + 1) b] /[3 /[a b]]
+//! /a               /a
+//!
+//! [a [b c] d]     [*[a b c] *[a d]]
+//!
+//! [a 0 b]         /[b a]
+//! [a 1 b]         b
+//! [a 2 b c]       *[*[a b] *[a c]]
+//! [a 3 b]         ?*[a b]
+//! [a 4 b]         +*[a b]
+//! [a 5 b]         =*[a b]
+//!
+//! [a 6 b c d]     *[a 2 [0 1] 2 [1 c d] [1 0] 2 [1 2 3] [1 0] 4 4 b]
+//! [a 7 b c]       *[a 2 b 1 c]
+//! [a 8 b c]       *[a 7 [[7 [0 1] b] 0 1] c]
+//! [a 9 b c]       *[a 7 c 2 [0 1] 0 b]
+//! [a 10 [b c] d]  *[a 8 c 7 [0 3] d]
+//! [a 10 b c]      *[a c]
+//!
+//! a               *a
+//! ```
+
 #![crate_name="nock"]
 
 #![feature(box_syntax, box_patterns)]
@@ -9,14 +57,28 @@ use std::fmt;
 use std::iter;
 use std::str;
 
-/// A Nock noun, the basic unit of representation.
+/// A Nock noun, the basic unit of representation
 ///
-/// The noun is either an atom a that's a positive integer or a pair of two
-/// nouns, [a b].
+/// # Examples
+///
+/// ```
+/// let noun: nock::Noun = "[19 4 0 1]".parse().unwrap();
+/// assert_eq!(format!("{}", noun.nock().unwrap()), "20");
+/// ```
 #[derive(Clone, PartialEq, Eq)]
 pub enum Noun {
+    /// A single positive integer
     Atom(u64), // TODO: Need bigints?
+    /// A a pair of two nouns
     Cell(Box<Noun>, Box<Noun>),
+}
+
+impl Noun {
+    /// Evaluate the noun using the function `nock(a) = *a` as defined in
+    /// the Nock spec.
+    pub fn nock(self) -> NockResult {
+        tar(self)
+    }
 }
 
 impl Into<Noun> for u64 {
@@ -85,6 +147,7 @@ impl fmt::Debug for Noun {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct ParseError;
 
 impl str::FromStr for Noun {
@@ -200,45 +263,9 @@ macro_rules! n {
 use Noun::*;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct Bottom;
+pub struct NockError;
 
-pub type NockResult = Result<Noun, Bottom>;
-
-// Nock(a)          *a
-// [a b c]          [a [b c]]
-//
-// ?[a b]           0
-// ?a               1
-// +[a b]           +[a b]
-// +a               1 + a
-// =[a a]           0
-// =[a b]           1
-// =a               =a
-//
-// /[1 a]           a
-// /[2 a b]         a
-// /[3 a b]         b
-// /[(a + a) b]     /[2 /[a b]]
-// /[(a + a + 1) b] /[3 /[a b]]
-// /a               /a
-//
-// *[a [b c] d]     [*[a b c] *[a d]]
-//
-// *[a 0 b]         /[b a]
-// *[a 1 b]         b
-// *[a 2 b c]       *[*[a b] *[a c]]
-// *[a 3 b]         ?*[a b]
-// *[a 4 b]         +*[a b]
-// *[a 5 b]         =*[a b]
-//
-// *[a 6 b c d]     *[a 2 [0 1] 2 [1 c d] [1 0] 2 [1 2 3] [1 0] 4 4 b]
-// *[a 7 b c]       *[a 2 b 1 c]
-// *[a 8 b c]       *[a 7 [[7 [0 1] b] 0 1] c]
-// *[a 9 b c]       *[a 7 c 2 [0 1] 0 b]
-// *[a 10 [b c] d]  *[a 8 c 7 [0 3] d]
-// *[a 10 b c]      *[a c]
-//
-// *a               *a
+pub type NockResult = Result<Noun, NockError>;
 
 fn wut(noun: Noun) -> NockResult {
     match noun {
@@ -250,7 +277,7 @@ fn wut(noun: Noun) -> NockResult {
 fn lus(noun: Noun) -> NockResult {
     match noun {
         Atom(n) => Ok(Atom(n + 1)),
-        _ => Err(Bottom),
+        _ => Err(NockError),
     }
 }
 
@@ -261,7 +288,7 @@ fn tis(noun: Noun) -> NockResult {
         } else {
             1
         })),
-        _ => Err(Bottom),
+        _ => Err(NockError),
     }
 }
 
@@ -273,14 +300,14 @@ fn fas(noun: Noun) -> NockResult {
 
         Cell(box Atom(a), b) => {
             if a <= 3 {
-                Err(Bottom)
+                Err(NockError)
             } else {
                 let x = try!(fas(Cell(box Atom(a / 2), b)));
                 fas(Cell(box Atom(2 + a % 2), box x))
             }
         }
 
-        _ => Err(Bottom),
+        _ => Err(NockError),
     }
 }
 
@@ -353,15 +380,11 @@ fn tar(mut noun: Noun) -> NockResult {
 
             ((), Cell(box a, box Cell(box Atom(10), box Cell(_b, box c)))) => noun = n![a, c],
 
-            _ => return Err(Bottom),
+            _ => return Err(NockError),
         }
     }
 }
 
-/// Evaluate a Nock noun into its product.
-pub fn nock(noun: Noun) -> NockResult {
-    tar(noun)
-}
 
 // Re-export hack for testing macros.
 mod nock {
@@ -376,11 +399,14 @@ mod test {
     }
 
     fn produces(input: &str, output: &str) {
-        use super::nock;
+        use super::Noun;
         assert_eq!(format!("{}",
-                           nock(input.parse().ok().expect("Parsing failed"))
-                               .ok()
-                               .expect("Eval failed")),
+                           input.parse::<Noun>()
+                                .ok()
+                                .expect("Parsing failed")
+                                .nock()
+                                .ok()
+                                .expect("Eval failed")),
                    output);
     }
 
@@ -480,13 +506,9 @@ mod test {
 
         // Fibonacci numbers,
         // https://groups.google.com/forum/#!topic/urbit-dev/K7QpBge30JI
-        produces("[10 [8 [1 [1 1]] [8 [1 0] [8 [1 [6 [5 [0 15] [4 0 6]] [0 28]
-                 \
-                  [9 2 [[0 2] [4 0 6] [[0 29] [7 [0 14] [8 [1 0]
-                 [8 [1 [6 [5 [0 \
-                  14] [0 6]] [0 15] [9 2 [[0 2] [4 0 6] [0 14] [4 0 15]]]]]
-                 [9 \
-                  2 0 1]]]]] [0 15]]]]] [9 2 0 1]]]]]",
+        produces("[10 [8 [1 [1 1]] [8 [1 0] [8 [1 [6 [5 [0 15] [4 0 6]] [0 28] [9 2 [[0 2] [4 0 \
+                  6] [[0 29] [7 [0 14] [8 [1 0] [8 [1 [6 [5 [0 14] [0 6]] [0 15] [9 2 [[0 2] [4 \
+                  0 6] [0 14] [4 0 15]]]]] [9 2 0 1]]]]] [0 15]]]]] [9 2 0 1]]]]]",
                  "55");
     }
 

@@ -35,9 +35,9 @@ fn main() {
         io::stdout().flush().expect("IO error");
         match io::stdin().read_line(&mut input) {
             Ok(_) => {
-                match input.parse() {
+                match input.parse::<nock::Noun>() {
                     Ok(noun) => {
-                        match nock::nock(noun) {
+                        match noun.nock() {
                             Ok(eval) => println!("{}", eval),
                             Err(_) => println!("Eval error"),
                         }
