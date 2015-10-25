@@ -5,7 +5,6 @@
 //! The Nock spec:
 //!
 //! ```notrust
-//!
 //! A noun is an atom or a cell.
 //! An atom is a natural number.
 //! A cell is an ordered pair of nouns.
@@ -316,70 +315,83 @@ fn tar(mut noun: Noun) -> NockResult {
     loop {
         match ((), noun) {
             ((), Cell(box a, box Cell(box Cell(box b, box c), box d))) => {
+                // Multiple opcodes, split up.
                 let x = try!(tar(n![a.clone(), b, c]));
                 let y = try!(tar(n![a, d]));
                 return Ok(n![x, y]);
             }
-
-            ((), Cell(box a, box Cell(box Atom(0), box b))) => return fas(n![b, a]),
-
-            ((), Cell(_a, box Cell(box Atom(1), box b))) => return Ok(b),
-
-            ((),
-             Cell(box a, box Cell(box Atom(2), box Cell(box b, box c)))) => {
-                let x = try!(tar(n![a.clone(), b]));
-                let y = try!(tar(n![a, c]));
-                noun = n![x, y];
+            ((), Cell(box a, box Cell(box Atom(opcode), box args))) => {
+                match opcode {
+                    0 => return fas(n![args, a]),
+                    1 => return Ok(args),
+                    2 => {
+                        if let Cell(box b, box c) = args {
+                            let x = try!(tar(n![a.clone(), b]));
+                            let y = try!(tar(n![a, c]));
+                            noun = n![x, y];
+                        } else {
+                            break;
+                        }
+                    }
+                    3 => return wut(try!(tar(n![a, args]))),
+                    4 => return lus(try!(tar(n![a, args]))),
+                    5 => return tis(try!(tar(n![a, args]))),
+                    6 => {
+                        if let ((), Cell(box b, box Cell(box c, box d))) = ((), args) {
+                            noun = n![a,
+                                      2,
+                                      n![0, 1],
+                                      2,
+                                      n![1, c, d],
+                                      n![1, 0],
+                                      2,
+                                      n![1, 2, 3],
+                                      n![1, 0],
+                                      4,
+                                      4,
+                                      b];
+                        } else {
+                            break;
+                        }
+                    }
+                    7 => {
+                        if let Cell(box b, box c) = args {
+                            noun = n![a, 2, b, 1, c];
+                        } else {
+                            break;
+                        }
+                    }
+                    8 => {
+                        if let Cell(box b, box c) = args {
+                            noun = n![a, 7, n![n![7, n![0, 1], b], 0, 1], c];
+                        } else {
+                            break;
+                        }
+                    }
+                    9 => {
+                        if let Cell(box b, box c) = args {
+                            noun = n![a, 7, c, 2, n![0, 1], 0, b];
+                        } else {
+                            break;
+                        }
+                    }
+                    10 => {
+                        if let Cell(box Cell(_, box c), box d) = args {
+                            noun = n![a, 8, c, 7, n![0, 3], d];
+                        } else if let Cell(_, box c) = args {
+                            noun = n![a, c]
+                        } else {
+                            break;
+                        }
+                    }
+                    _ => break,
+                }
             }
-
-            ((), Cell(box a, box Cell(box Atom(3), box b))) => {
-                return wut(try!(tar(n![a, b])));
-            }
-
-            ((), Cell(box a, box Cell(box Atom(4), box b))) => {
-                return lus(try!(tar(n![a, b])));
-            }
-
-            ((), Cell(box a, box Cell(box Atom(5), box b))) => {
-                return tis(try!(tar(n![a, b])));
-            }
-
-            ((),
-             Cell(box a, box Cell(box Atom(6), box Cell(box b, box Cell(box c, box d))))) =>
-                noun = n![a,
-                          2,
-                          n![0, 1],
-                          2,
-                          n![1, c, d],
-                          n![1, 0],
-                          2,
-                          n![1, 2, 3],
-                          n![1, 0],
-                          4,
-                          4,
-                          b],
-
-            ((),
-             Cell(box a, box Cell(box Atom(7), box Cell(box b, box c)))) =>
-                noun = n![a, 2, b, 1, c],
-
-            ((),
-             Cell(box a, box Cell(box Atom(8), box Cell(box b, box c)))) =>
-                noun = n![a, 7, n![n![7, n![0, 1], b], 0, 1], c],
-
-            ((),
-             Cell(box a, box Cell(box Atom(9), box Cell(box b, box c)))) =>
-                noun = n![a, 7, c, 2, n![0, 1], 0, b],
-
-            ((),
-             Cell(box a, box Cell(box Atom(10), box Cell(box Cell(_b, box c), box d)))) =>
-                noun = n![a, 8, c, 7, n![0, 3], d],
-
-            ((), Cell(box a, box Cell(box Atom(10), box Cell(_b, box c)))) => noun = n![a, c],
-
-            _ => return Err(NockError),
+            _ => break,
         }
     }
+
+    Err(NockError)
 }
 
 
