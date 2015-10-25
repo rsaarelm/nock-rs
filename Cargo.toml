@@ -7,9 +7,6 @@ description = "A stateless virtual machine"
 repository = "https://github.com/rsaarelm/nock-rs"
 license = "MIT"
 
-[dependencies]
-log = "*"
-
 [[example]]
 name = "repl"
 path = "examples/repl.rs"

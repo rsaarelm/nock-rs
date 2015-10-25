@@ -51,9 +51,6 @@
 
 #![feature(box_syntax, box_patterns)]
 
-#[macro_use]
-extern crate log;
-
 use std::fmt;
 use std::iter;
 use std::str;
@@ -317,7 +314,6 @@ fn tar(mut noun: Noun) -> NockResult {
     // the top-level expression but will handle fine if they're wrapped in a
     // trivial tuple.
     loop {
-        trace!("*{}", noun);
         match ((), noun) {
             ((), Cell(box a, box Cell(box Cell(box b, box c), box d))) => {
                 let x = try!(tar(n![a.clone(), b, c]));
