@@ -394,6 +394,25 @@ fn tar(mut noun: Noun) -> NockResult {
     Err(NockError)
 }
 
+/// Try to represent a Nock atom as a string.
+///
+/// The atom is interpreted as a string of ASCII bytes in least significant
+/// byte first order. The atom must evaluate entirely into printable ASCII-7.
+pub fn cord(mut atom: u64) -> Option<String> {
+    let mut ret = String::new();
+    while atom > 0 {
+        let ch = (atom % 0x100) as u8;
+        if ch >= 0x20 && ch < 0x80 {
+            ret.push(ch as char);
+        } else {
+            return None;
+        }
+        atom = atom >> 8;
+    }
+
+    Some(ret)
+}
+
 
 // Re-export hack for testing macros.
 mod nock {
@@ -528,5 +547,13 @@ mod test {
         // doesn't work.
         produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
                  "9.999");
+    }
+
+    #[test]
+    fn test_cord() {
+        use super::cord;
+        assert_eq!(cord(0), Some("".to_string()));
+        assert_eq!(cord(190), None);
+        assert_eq!(cord(0x6f_6f66), Some("foo".to_string()));
     }
 }
