@@ -10,3 +10,7 @@ license = "MIT"
 [[example]]
 name = "repl"
 path = "examples/repl.rs"
+
+[[example]]
+name = "strings"
+path = "examples/strings.rs"
