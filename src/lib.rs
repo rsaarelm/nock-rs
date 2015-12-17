@@ -50,10 +50,14 @@
 
 #![feature(box_syntax, box_patterns)]
 
+extern crate num;
+
 use std::fmt;
 use std::iter;
 use std::str;
 use std::rc::Rc;
+use num::bigint::BigUint;
+use num::traits::{ToPrimitive, Zero};
 
 /// A Nock noun, the basic unit of representation
 ///
@@ -66,7 +70,8 @@ use std::rc::Rc;
 #[derive(Clone, PartialEq, Eq)]
 pub enum Noun {
     /// A single positive integer
-    Atom(u64), // TODO: Need bigints?
+    Atom(u32),
+    BigAtom(BigUint),
     /// A a pair of two nouns
     Cell(Rc<Noun>, Rc<Noun>),
 }
@@ -79,7 +84,7 @@ impl Noun {
     }
 }
 
-impl Into<Noun> for u64 {
+impl Into<Noun> for u32 {
     fn into(self) -> Noun {
         Noun::Atom(self)
     }
@@ -105,6 +110,7 @@ impl fmt::Display for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Atom(ref n) => return dot_separators(f, &n),
+            &BigAtom(ref n) => return dot_separators(f, &n),
             &Cell(ref a, ref b) => {
                 try!(write!(f, "[{} ", a));
                 // List pretty-printer.
@@ -116,6 +122,10 @@ impl fmt::Display for Noun {
                             cur = &b;
                         }
                         Atom(ref n) => {
+                            try!(dot_separators(f, &n));
+                            return write!(f, "]");
+                        }
+                        BigAtom(ref n) => {
                             try!(dot_separators(f, &n));
                             return write!(f, "]");
                         }
@@ -166,6 +176,9 @@ impl str::FromStr for Noun {
         /// Parse an atom, a positive integer.
         fn parse_atom<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>)
                                                 -> Result<Noun, ParseError> {
+            use std::u32;
+            use num::traits::ToPrimitive;
+
             let mut buf = Vec::new();
 
             loop {
@@ -196,10 +209,13 @@ impl str::FromStr for Noun {
                 return Err(ParseError);
             }
 
-            Ok(Noun::Atom(buf.into_iter()
-                             .collect::<String>()
-                             .parse()
-                             .expect("Failed to parse atom")))
+            let num: BigUint = buf.into_iter().collect::<String>().parse().expect("Failed to parse atom");
+
+            if num <= BigUint::from(u32::MAX) {
+                Ok(Noun::Atom(num.to_u32().expect("Failed to make 32-bit atom")))
+            } else {
+                Ok(Noun::BigAtom(num))
+            }
         }
 
         /// Parse a cell, a bracketed pair of nouns.
@@ -393,15 +409,20 @@ fn tar(mut noun: Noun) -> NockResult {
 
     Err(NockError)
 }
+*/
+
+fn tar(noun: Noun) -> NockResult {
+    unimplemented!();
+}
 
 /// Try to represent a Nock atom as a string.
 ///
 /// The atom is interpreted as a string of ASCII bytes in least significant
 /// byte first order. The atom must evaluate entirely into printable ASCII-7.
-pub fn cord(mut atom: u64) -> Option<String> {
+pub fn cord(mut atom: BigUint) -> Option<String> {
     let mut ret = String::new();
-    while atom > 0 {
-        let ch = (atom % 0x100) as u8;
+    while atom > Zero::zero() {
+        let ch = (atom.clone() % BigUint::from(0x100u32)).to_u8().unwrap();
         if ch >= 0x20 && ch < 0x80 {
             ret.push(ch as char);
         } else {
@@ -422,6 +443,8 @@ mod nock {
 #[cfg(test)]
 mod test {
     use std::rc::Rc;
+    use num::bigint::BigUint;
+    use super::Noun::{self, Atom, BigAtom, Cell};
 
     fn parses(input: &str, output: super::Noun) {
         assert_eq!(input.parse::<super::Noun>().ok().expect("Parsing failed"),
@@ -429,7 +452,6 @@ mod test {
     }
 
     fn produces(input: &str, output: &str) {
-        use super::Noun;
         assert_eq!(format!("{}",
                            input.parse::<Noun>()
                                 .ok()
@@ -442,8 +464,6 @@ mod test {
 
     #[test]
     fn test_macro() {
-        use super::Noun::*;
-
         assert_eq!(n![1, 2], Cell(Rc::new(Atom(1)), Rc::new(Atom(2))));
         assert_eq!(n![1, n![2, 3]],
                    Cell(Rc::new(Atom(1)), Rc::new(Cell(Rc::new(Atom(2)), Rc::new(Atom(3))))));
@@ -462,8 +482,6 @@ mod test {
 
     #[test]
     fn test_from_iter() {
-        use super::Noun::Atom;
-
         assert_eq!(Atom(1), vec![Atom(1)].into_iter().collect());
         assert_eq!(n![1, 2], vec![Atom(1), Atom(2)].into_iter().collect());
         assert_eq!(n![1, 2, 3],
@@ -474,7 +492,7 @@ mod test {
 
     #[test]
     fn test_parser() {
-        use super::Noun::{self, Atom};
+        use num::traits::Num;
 
         assert!("".parse::<Noun>().is_err());
         assert!("12ab".parse::<Noun>().is_err());
@@ -484,6 +502,14 @@ mod test {
         parses("0", Atom(0));
         parses("1", Atom(1));
         parses("1.000.000", Atom(1_000_000));
+
+        parses("4294967295", Atom(4294967295));
+        parses("4294967296", BigAtom(BigUint::from(4294967296u64)));
+
+        parses("999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999",
+               BigAtom(BigUint::from_str_radix(
+                       "999999999999999999999999999999999999999999999999999999999999",
+                                10).unwrap()));
 
         parses("[1 2]", n![1, 2]);
         parses("[1 2 3]", n![1, 2, 3]);
@@ -554,8 +580,8 @@ mod test {
     #[test]
     fn test_cord() {
         use super::cord;
-        assert_eq!(cord(0), Some("".to_string()));
-        assert_eq!(cord(190), None);
-        assert_eq!(cord(0x6f_6f66), Some("foo".to_string()));
+        assert_eq!(cord(BigUint::from(0u32)), Some("".to_string()));
+        assert_eq!(cord(BigUint::from(190u32)), None);
+        assert_eq!(cord(BigUint::from(0x6f_6f66u32)), Some("foo".to_string()));
     }
 }
