@@ -53,6 +53,7 @@
 use std::fmt;
 use std::iter;
 use std::str;
+use std::rc::Rc;
 
 /// A Nock noun, the basic unit of representation
 ///
@@ -67,7 +68,7 @@ pub enum Noun {
     /// A single positive integer
     Atom(u64), // TODO: Need bigints?
     /// A a pair of two nouns
-    Cell(Box<Noun>, Box<Noun>),
+    Cell(Rc<Noun>, Rc<Noun>),
 }
 
 impl Noun {
@@ -94,7 +95,7 @@ impl iter::FromIterator<Noun> for Noun {
         v.into_iter()
          .fold(None, |acc, i| {
              acc.map_or_else(|| Some(i.clone()),
-                             |a| Some(Noun::Cell(box i.clone(), box a)))
+                             |a| Some(Noun::Cell(Rc::new(i.clone()), Rc::new(a))))
          })
          .expect("Can't make noun from empty list")
     }
@@ -109,12 +110,12 @@ impl fmt::Display for Noun {
                 // List pretty-printer.
                 let mut cur = b;
                 loop {
-                    match cur {
-                        &box Cell(ref a, ref b) => {
+                    match **cur {
+                        Cell(ref a, ref b) => {
                             try!(write!(f, "{} ", a));
                             cur = &b;
                         }
-                        &box Atom(ref n) => {
+                        Atom(ref n) => {
                             try!(dot_separators(f, &n));
                             return write!(f, "]");
                         }
@@ -244,7 +245,6 @@ impl str::FromStr for Noun {
                 }
             }
         }
-
     }
 }
 
@@ -253,8 +253,8 @@ impl str::FromStr for Noun {
 /// Rust n![1, 2, 3] corresponds to Nock [1 2 3]
 #[macro_export]
 macro_rules! n {
-    [$x:expr, $y:expr] => { ::nock::Noun::Cell(box $x.into(), box $y.into()) };
-    [$x:expr, $y:expr, $($ys:expr),+] => { ::nock::Noun::Cell(box $x.into(), box n![$y, $($ys),+]) };
+    [$x:expr, $y:expr] => { ::nock::Noun::Cell(::std::rc::Rc::new($x.into()), ::std::rc::Rc::new($y.into())) };
+    [$x:expr, $y:expr, $($ys:expr),+] => { ::nock::Noun::Cell(::std::rc::Rc::new($x.into()), ::std::rc::Rc::new(n![$y, $($ys),+])) };
 }
 
 use Noun::*;
@@ -421,6 +421,8 @@ mod nock {
 
 #[cfg(test)]
 mod test {
+    use std::rc::Rc;
+
     fn parses(input: &str, output: super::Noun) {
         assert_eq!(input.parse::<super::Noun>().ok().expect("Parsing failed"),
                    output);
@@ -442,20 +444,20 @@ mod test {
     fn test_macro() {
         use super::Noun::*;
 
-        assert_eq!(n![1, 2], Cell(box Atom(1), box Atom(2)));
+        assert_eq!(n![1, 2], Cell(Rc::new(Atom(1)), Rc::new(Atom(2))));
         assert_eq!(n![1, n![2, 3]],
-                   Cell(box Atom(1), box Cell(box Atom(2), box Atom(3))));
+                   Cell(Rc::new(Atom(1)), Rc::new(Cell(Rc::new(Atom(2)), Rc::new(Atom(3))))));
         assert_eq!(n![1, 2, 3],
-                   Cell(box Atom(1), box Cell(box Atom(2), box Atom(3))));
+                   Cell(Rc::new(Atom(1)), Rc::new(Cell(Rc::new(Atom(2)), Rc::new(Atom(3))))));
         assert_eq!(n![n![1, 2], 3],
-                   Cell(box Cell(box Atom(1), box Atom(2)), box Atom(3)));
+                   Cell(Rc::new(Cell(Rc::new(Atom(1)), Rc::new(Atom(2)))), Rc::new(Atom(3))));
         assert_eq!(n![n![1, 2], n![3, 4]],
-                   Cell(box Cell(box Atom(1), box Atom(2)),
-                        box Cell(box Atom(3), box Atom(4))));
+                   Cell(Rc::new(Cell(Rc::new(Atom(1)), Rc::new(Atom(2)))),
+                        Rc::new(Cell(Rc::new(Atom(3)), Rc::new(Atom(4))))));
         assert_eq!(n![n![1, 2], n![3, 4], n![5, 6]],
-                   Cell(box Cell(box Atom(1), box Atom(2)),
-                        box Cell(box Cell(box Atom(3), box Atom(4)),
-                                 box Cell(box Atom(5), box Atom(6)))));
+                   Cell(Rc::new(Cell(Rc::new(Atom(1)), Rc::new(Atom(2)))),
+                        Rc::new(Cell(Rc::new(Cell(Rc::new(Atom(3)), Rc::new(Atom(4)))),
+                                 Rc::new(Cell(Rc::new(Atom(5)), Rc::new(Atom(6))))))));
     }
 
     #[test]
