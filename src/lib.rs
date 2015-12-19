@@ -292,19 +292,17 @@ pub type NockResult = Result<Rc<Noun>, NockError>;
 
 fn tar(noun: &Noun) -> NockResult {
     if let Some((subject, ops, tail)) = noun.as_triple() {
-        loop {
-            match *ops {
-                BigAtom(_) => {
-                    // Huge opcodes are not handled.
-                    return Err(NockError);
-                }
-                Atom(x) => return run_op(subject, x, tail),
-                Cell(_, _) => {
-                    // Autocons
-                    let a = try!(tar(&Cell(subject.clone(), ops.clone())));
-                    let b = try!(tar(&Cell(subject, tail)));
-                    return Ok(Rc::new(Cell(a, b)));
-                }
+        match *ops {
+            BigAtom(_) => {
+                // Huge opcodes are not handled.
+                return Err(NockError);
+            }
+            Atom(x) => return run_op(subject, x, tail),
+            Cell(_, _) => {
+                // Autocons
+                let a = try!(tar(&Cell(subject.clone(), ops.clone())));
+                let b = try!(tar(&Cell(subject, tail)));
+                return Ok(Rc::new(Cell(a, b)));
             }
         }
     }
@@ -390,10 +388,11 @@ fn axis(x: u32, noun: Rc<Noun>) -> NockResult {
                     } else if n == 3 {
                         Ok(b.clone())
                     } else {
+                        let x = try!(axis(x / 2, noun.clone()));
                         if n % 2 == 0 {
-                            axis(x / 2, a.clone())
+                            axis(2, x)
                         } else {
-                            axis(x / 2, b.clone())
+                            axis(3, x)
                         }
                     }
                 }
