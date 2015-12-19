@@ -464,7 +464,14 @@ fn tar(noun: &Noun) -> NockResult {
             }
             // Fire
             2 => {
-                unimplemented!();
+                match *tail {
+                    Cell(ref b, ref c) => {
+                        let p = try!(tar(&Cell(subject.clone(), b.clone())));
+                        let q = try!(tar(&Cell(subject, c.clone())));
+                        tar(&Cell(p, q))
+                    }
+                    _ => { Err(NockError) }
+                }
             }
             // Depth
             3 => {
