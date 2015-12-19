@@ -432,6 +432,7 @@ fn tar(noun: &Noun) -> NockResult {
                     return run_op(subject, x, tail)
                 }
                 Cell(_, _) => {
+                    // Autocons
                     let a = try!(tar(&Cell(subject.clone(), ops.clone())));
                     let b = try!(tar(&Cell(subject, tail)));
                     return Ok(Rc::new(Cell(a, b)));
@@ -461,9 +462,22 @@ fn tar(noun: &Noun) -> NockResult {
             1 => {
                 Ok(tail)
             }
+            // Fire
+            2 => {
+                unimplemented!();
+            }
+            // Depth
+            3 => {
+                let noun = try!(tar(&Cell(subject, tail)));
+                match *noun {
+                    Cell(_, _) => Ok(Rc::new(Atom(0))),
+                    _ => Ok(Rc::new(Atom(1)))
+                }
+            }
             // Bump
             4 => {
-                match *tail {
+                let noun = try!(tar(&Cell(subject, tail)));
+                match *noun {
                     // Switch to BigAtoms at regular atom size limit.
                     Atom(u32::MAX) => {
                         Ok(Rc::new(BigAtom(BigUint::from(u32::MAX) + BigUint::from(1u32))))
@@ -473,6 +487,17 @@ fn tar(noun: &Noun) -> NockResult {
                     }
                     BigAtom(ref x) => {
                         Ok(Rc::new(BigAtom(x + BigUint::from(1u32))))
+                    }
+                    _ => { Err(NockError) }
+                }
+            }
+            // Same
+            5 => {
+                let noun = try!(tar(&Cell(subject, tail)));
+                match *noun {
+                    Cell(ref a, ref b) => {
+                        if a == b { Ok(Rc::new(Atom(0))) } else {
+                            Ok(Rc::new(Atom(1))) }
                     }
                     _ => { Err(NockError) }
                 }
@@ -495,7 +520,11 @@ fn axis(x: u32, noun: Rc<Noun>) -> NockResult {
                     } else if n == 3 {
                         Ok(b.clone())
                     } else {
-                        unimplemented!();
+                        if n % 2 == 0 {
+                            axis(x / 2, a.clone())
+                        } else {
+                            axis(x / 2, b.clone())
+                        }
                     }
                 }
                 _ => Err(NockError)
@@ -607,33 +636,62 @@ mod test {
     }
 
     #[test]
-    fn test_nock() {
+    fn test_autocons() {
         produces("[42 [4 0 1] [3 0 1]]", "[43 1]");
+    }
 
+    #[test]
+    fn test_axis() {
         // Operator 0: Axis
         produces("[[19 42] [0 3] 0 2]", "[42 19]");
         produces("[[19 42] 0 3]", "42");
         produces("[[[97 2] [1 42 0]] 0 7]", "[42 0]");
+    }
 
+    #[test]
+    fn test_just() {
         // Operator 1: Just
         produces("[42 1 57]", "57");
+    }
 
+    #[test]
+    fn test_fire() {
         // Operator 2: Fire
         produces("[[[40 43] [4 0 1]] [2 [0 4] [0 3]]]", "41");
         produces("[[[40 43] [4 0 1]] [2 [0 5] [0 3]]]", "44");
         produces("[77 [2 [1 42] [1 1 153 218]]]", "[153 218]");
+    }
 
+    #[test]
+    fn test_depth() {
         // Operator 3: Depth
         produces("[1 3 0 1]", "1");
         produces("[[2 3] 3 0 1]", "0");
+    }
 
+    #[test]
+    fn test_bump() {
         // Operator 4: Bump
         produces("[57 4 0 1]", "58");
+    }
 
+    #[test]
+    fn test_bigint() {
+        // 32-bit limit, bump up needs bignums if atom is u32
+        produces("[4294967295 4 0 1]", "4.294.967.296");
+        // 64-bit limit, bump up needs bignums if atom is u64
+        produces("[18446744073709551615 4 0 1]", "18.446.744.073.709.551.616");
+    }
+
+    #[test]
+    fn test_same() {
         // Operator 5: Same
         produces("[[1 1] 5 0 1]", "0");
         produces("[[1 2] 5 0 1]", "1");
+    }
 
+    #[test]
+    fn test_nock_6_to_10() {
         // Operator 6: If
         produces("[[40 43] 6 [3 0 1] [4 0 2] [4 0 1]]", "41");
         produces("[42 6 [1 0] [4 0 1] 1 233]", "43");
@@ -664,14 +722,6 @@ mod test {
         // doesn't work.
         produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
                  "9.999");
-    }
-
-    #[test]
-    fn test_bigint() {
-        // 32-bit limit, bump up needs bignums if atom is u32
-        produces("[4294967295 4 0 1]", "4294967296");
-        // 64-bit limit, bump up needs bignums if atom is u64
-        produces("[18446744073709551615 4 0 1]", "18446744073709551616");
     }
 
     #[test]
