@@ -123,6 +123,52 @@ impl Noun {
     pub fn from_biguint(num: BigUint) -> Noun {
         num.to_u32().map_or(BigAtom(num), |x| Atom(x))
     }
+
+    /// Return the number of atoms in the noun.
+    ///
+    /// May end up running for a very long time with nontrivial nouns.
+    pub fn size(&self) -> u64 {
+        match self {
+            &Cell(ref a, ref b) => {
+                a.size() + b.size()
+            }
+            _ => { 1 }
+        }
+    }
+
+    /// Return whether the noun has more than the given number of atoms.
+    ///
+    /// Noun can be extremely large, so asking for an explicit atom count can
+    /// cause the function to run for an extremely long time. Asking about a
+    /// modest bound to detect cells that are too big to eg. try writing to
+    /// stdout will terminate in a reasonable time.
+    pub fn is_larger_than(&self, size: u64) -> bool {
+        if size == 0 {
+            return true;
+        }
+        match self {
+            &Cell(ref a, ref b) => {
+                if a.is_larger_than(size - 1) { return true; }
+                if b.is_larger_than(size - 1) { return true; }
+                a.size() + b.size() > size
+            }
+            _ => { false }
+        }
+    }
+
+    /// Return whether the noun represents a list with more than the given
+    /// number of elements.
+    pub fn is_wider_than(&self, size: u64) -> bool {
+        if size == 0 {
+            return true;
+        }
+        match self {
+            &Cell(_, ref b) => {
+                b.is_wider_than(size - 1)
+            }
+            _ => { false }
+        }
+    }
 }
 
 impl Into<Noun> for u32 {
