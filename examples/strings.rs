@@ -13,20 +13,20 @@ fn main() {
     io::stdin().read_to_string(&mut input).unwrap();
 
     let nock = input.parse::<nock::Noun>().unwrap();
-    strings(nock);
+    strings(&nock);
 }
 
-fn strings(noun: nock::Noun) {
+fn strings(noun: &nock::Noun) {
     match noun {
-        nock::Noun::Cell(box a, box b) => {
+        &nock::Noun::Cell(ref a, ref b) => {
             strings(a);
             strings(b);
         }
-        nock::Noun::Atom(a) => {
-            if a >= 0x2121 {
-                if let Some(s) = nock::cord(a) {
-                    println!("{}", s);
-                }
+        &nock::Noun::Atom(a) if a < 0x2121 => {
+        }
+        _ => {
+            if let Some(s) = noun.to_cord() {
+                println!("{}", s);
             }
         }
     }

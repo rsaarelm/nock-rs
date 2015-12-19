@@ -90,6 +90,32 @@ impl Noun {
         }
         None
     }
+
+    /// Try to represent a Nock atom as a string.
+    ///
+    /// The atom is interpreted as a string of ASCII bytes in least significant
+    /// byte first order. The atom must evaluate entirely into printable ASCII-7.
+    pub fn to_cord(&self) -> Option<String> {
+        let mut atom;
+        match self {
+            &Atom(ref x) => atom = BigUint::from(*x),
+            &BigAtom(ref x) => atom = x.clone(),
+            _ => return None,
+        }
+
+        let mut ret = String::new();
+        while atom > Zero::zero() {
+            let ch = (atom.clone() % BigUint::from(0x100u32)).to_u8().unwrap();
+            if ch >= 0x20 && ch < 0x80 {
+                ret.push(ch as char);
+            } else {
+                return None;
+            }
+            atom = atom >> 8;
+        }
+
+        Some(ret)
+    }
 }
 
 impl Into<Noun> for u32 {
@@ -468,24 +494,6 @@ fn axis(x: u32, noun: Rc<Noun>) -> NockResult {
     }
 }
 
-/// Try to represent a Nock atom as a string.
-///
-/// The atom is interpreted as a string of ASCII bytes in least significant
-/// byte first order. The atom must evaluate entirely into printable ASCII-7.
-pub fn cord(mut atom: BigUint) -> Option<String> {
-    let mut ret = String::new();
-    while atom > Zero::zero() {
-        let ch = (atom.clone() % BigUint::from(0x100u32)).to_u8().unwrap();
-        if ch >= 0x20 && ch < 0x80 {
-            ret.push(ch as char);
-        } else {
-            return None;
-        }
-        atom = atom >> 8;
-    }
-
-    Some(ret)
-}
 
 
 // Re-export hack for testing macros.
@@ -668,9 +676,8 @@ mod test {
 
     #[test]
     fn test_cord() {
-        use super::cord;
-        assert_eq!(cord(BigUint::from(0u32)), Some("".to_string()));
-        assert_eq!(cord(BigUint::from(190u32)), None);
-        assert_eq!(cord(BigUint::from(0x6f_6f66u32)), Some("foo".to_string()));
+        assert_eq!("0".parse::<Noun>().unwrap().to_cord(), Some("".to_string()));
+        assert_eq!("190".parse::<Noun>().unwrap().to_cord(), None);
+        assert_eq!("7303014".parse::<Noun>().unwrap().to_cord(), Some("foo".to_string()));
     }
 }
