@@ -55,7 +55,7 @@ use std::iter;
 use std::str;
 use std::rc::Rc;
 use num::bigint::BigUint;
-use num::traits::{ToPrimitive, Zero};
+use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
 
 /// A Nock noun, the basic unit of representation
 ///
@@ -99,14 +99,14 @@ impl Noun {
     pub fn to_cord(&self) -> Option<String> {
         let mut atom;
         match self {
-            &Atom(ref x) => atom = BigUint::from(*x),
+            &Atom(ref x) => atom = BigUint::from_u32(*x).unwrap(),
             &BigAtom(ref x) => atom = x.clone(),
             _ => return None,
         }
 
         let mut ret = String::new();
         while atom > Zero::zero() {
-            let ch = (atom.clone() % BigUint::from(0x100u32)).to_u8().unwrap();
+            let ch = (atom.clone() % BigUint::from_u32(0x100).unwrap()).to_u8().unwrap();
             if ch >= 0x20 && ch < 0x80 {
                 ret.push(ch as char);
             } else {
@@ -248,7 +248,7 @@ impl str::FromStr for Noun {
                                   .parse()
                                   .expect("Failed to parse atom");
 
-            if num <= BigUint::from(u32::MAX) {
+            if num <= BigUint::from_u32(u32::MAX).unwrap() {
                 Ok(Noun::Atom(num.to_u32().expect("Failed to make 32-bit atom")))
             } else {
                 Ok(Noun::BigAtom(num))
@@ -366,11 +366,11 @@ fn tar(mut noun: Noun) -> NockResult {
                             return match *p {
                                 // Switch to BigAtoms at regular atom size limit.
                                 Atom(u32::MAX) => {
-                                    Ok(Rc::new(BigAtom(BigUint::from(u32::MAX) +
-                                                       BigUint::from(1u32))))
+                                    Ok(Rc::new(BigAtom(BigUint::from_u32(u32::MAX).unwrap() +
+                                                       BigUint::one())))
                                 }
                                 Atom(ref x) => Ok(Rc::new(Atom(x + 1))),
-                                BigAtom(ref x) => Ok(Rc::new(BigAtom(x + BigUint::from(1u32)))),
+                                BigAtom(ref x) => Ok(Rc::new(BigAtom(x + BigUint::one()))),
                                 _ => Err(NockError),
                             };
                         }
@@ -509,6 +509,7 @@ mod nock {
 mod test {
     use std::rc::Rc;
     use num::bigint::BigUint;
+    use num::traits::FromPrimitive;
     use super::Noun::{self, Atom, BigAtom, Cell};
 
     fn parses(input: &str, output: super::Noun) {
@@ -572,7 +573,8 @@ mod test {
         parses("1.000.000", Atom(1_000_000));
 
         parses("4294967295", Atom(4294967295));
-        parses("4294967296", BigAtom(BigUint::from(4294967296u64)));
+        parses("4294967296",
+               BigAtom(BigUint::from_u64(4294967296).unwrap()));
 
         parses("999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999",
                BigAtom(BigUint::from_str_radix("99999999999999999999999999999999999999999999999\
