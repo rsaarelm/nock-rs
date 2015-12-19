@@ -65,7 +65,7 @@ use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
 /// let noun: nock::Noun = "[19 4 0 1]".parse().unwrap();
 /// assert_eq!(format!("{}", noun.nock().unwrap()), "20");
 /// ```
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Noun {
     /// A single positive integer
     Atom(u32),
@@ -252,12 +252,6 @@ impl fmt::Display for Noun {
             }
             Ok(())
         }
-    }
-}
-
-impl fmt::Debug for Noun {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self)
     }
 }
 
