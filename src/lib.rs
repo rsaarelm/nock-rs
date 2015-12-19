@@ -48,8 +48,6 @@
 
 #![crate_name="nock"]
 
-#![feature(box_syntax, box_patterns)]
-
 extern crate num;
 
 use std::fmt;
@@ -79,8 +77,18 @@ pub enum Noun {
 impl Noun {
     /// Evaluate the noun using the function `nock(a) = *a` as defined in
     /// the Nock spec.
-    pub fn nock(self) -> NockResult {
+    pub fn nock(&self) -> NockResult {
         tar(self)
+    }
+
+    /// If the noun has structure [a [b c]], return a tuple of a, b and c.
+    fn as_triple(&self) -> Option<(Rc<Noun>, Rc<Noun>, Rc<Noun>)> {
+        if let &Cell(ref a, ref bc) = self {
+            if let Cell(ref b, ref c) = **bc {
+                return Some((a.clone(), b.clone(), c.clone()));
+            }
+        }
+        None
     }
 }
 
@@ -278,8 +286,9 @@ use Noun::*;
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct NockError;
 
-pub type NockResult = Result<Noun, NockError>;
+pub type NockResult = Result<Rc<Noun>, NockError>;
 
+/*
 fn wut(noun: Noun) -> NockResult {
     match noun {
         Cell(_, _) => Ok(Atom(0)),
@@ -411,8 +420,41 @@ fn tar(mut noun: Noun) -> NockResult {
 }
 */
 
-fn tar(noun: Noun) -> NockResult {
-    unimplemented!();
+fn tar(noun: &Noun) -> NockResult {
+    if let Some((subject, ops, tail)) = noun.as_triple() {
+        loop {
+            match *ops {
+                BigAtom(_) => {
+                    // Huge opcodes are not handled.
+                    return Err(NockError);
+                }
+                Atom(x) => {
+                    return run_op(subject, x, tail)
+                }
+                Cell(_, _) => {
+                    let a = try!(tar(&Cell(subject.clone(), ops.clone())));
+                    let b = try!(tar(&Cell(subject, tail)));
+                    return Ok(Rc::new(Cell(a, b)));
+                }
+            }
+        }
+    }
+    return Err(NockError);
+
+    fn run_op(subject: Rc<Noun>, op: u32, tail: Rc<Noun>) -> NockResult {
+        match op {
+            // Axis
+            0 => {
+                unimplemented!();
+            }
+            // Just
+            1 => {
+                Ok(tail)
+            }
+
+            _ => { Err(NockError) }
+        }
+    }
 }
 
 /// Try to represent a Nock atom as a string.
