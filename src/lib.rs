@@ -195,26 +195,46 @@ impl iter::FromIterator<Noun> for Noun {
 
 impl fmt::Display for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Atom(ref n) => return dot_separators(f, &n),
-            &BigAtom(ref n) => return dot_separators(f, &n),
-            &Cell(ref a, ref b) => {
-                try!(write!(f, "[{} ", a));
-                // List pretty-printer.
-                let mut cur = b;
-                loop {
-                    match **cur {
-                        Cell(ref a, ref b) => {
-                            try!(write!(f, "{} ", a));
-                            cur = &b;
+        return w(self, f, 0);
+
+        fn w(noun: &Noun, f: &mut fmt::Formatter, depth: u64) -> fmt::Result {
+            let is_large = noun.is_larger_than(16);
+
+            let sep = if is_large {
+                "\n"
+            } else {
+                " "
+            };
+            match noun {
+                &Atom(ref n) => return dot_separators(f, &n),
+                &BigAtom(ref n) => return dot_separators(f, &n),
+                &Cell(ref a, ref b) => {
+                    try!(write!(f, "["));
+                    try!(w(a, f, depth + 1));
+                    try!(write!(f, "{}", sep));
+                    // List pretty-printer.
+                    let mut cur = b;
+                    loop {
+                        if is_large {
+                            use std::cmp::min;
+                            for _ in 0..(min(depth, 64)) {
+                                try!(write!(f, " "));
+                            }
                         }
-                        Atom(ref n) => {
-                            try!(dot_separators(f, &n));
-                            return write!(f, "]");
-                        }
-                        BigAtom(ref n) => {
-                            try!(dot_separators(f, &n));
-                            return write!(f, "]");
+                        match **cur {
+                            Cell(ref a, ref b) => {
+                                try!(w(a, f, depth + 1));
+                                try!(write!(f, "{}", sep));
+                                cur = &b;
+                            }
+                            Atom(ref n) => {
+                                try!(dot_separators(f, &n));
+                                return write!(f, "]");
+                            }
+                            BigAtom(ref n) => {
+                                try!(dot_separators(f, &n));
+                                return write!(f, "]");
+                            }
                         }
                     }
                 }
