@@ -154,7 +154,6 @@ impl fmt::Display for Noun {
             Ok(())
         }
     }
-
 }
 
 impl fmt::Debug for Noun {
@@ -217,7 +216,10 @@ impl str::FromStr for Noun {
                 return Err(ParseError);
             }
 
-            let num: BigUint = buf.into_iter().collect::<String>().parse().expect("Failed to parse atom");
+            let num: BigUint = buf.into_iter()
+                                  .collect::<String>()
+                                  .parse()
+                                  .expect("Failed to parse atom");
 
             if num <= BigUint::from(u32::MAX) {
                 Ok(Noun::Atom(num.to_u32().expect("Failed to make 32-bit atom")))
@@ -288,138 +290,6 @@ pub struct NockError;
 
 pub type NockResult = Result<Rc<Noun>, NockError>;
 
-/*
-fn wut(noun: Noun) -> NockResult {
-    match noun {
-        Cell(_, _) => Ok(Atom(0)),
-        Atom(_) => Ok(Atom(1)),
-    }
-}
-
-fn lus(noun: Noun) -> NockResult {
-    match noun {
-        Atom(n) => Ok(Atom(n + 1)),
-        _ => Err(NockError),
-    }
-}
-
-fn tis(noun: Noun) -> NockResult {
-    match noun {
-        Cell(a, b) => Ok(Atom(if a == b {
-            0
-        } else {
-            1
-        })),
-        _ => Err(NockError),
-    }
-}
-
-fn fas(noun: Noun) -> NockResult {
-    match noun {
-        Cell(box Atom(1), box a) => Ok(a),
-        Cell(box Atom(2), box Cell(box a, _)) => Ok(a),
-        Cell(box Atom(3), box Cell(_, box b)) => Ok(b),
-
-        Cell(box Atom(a), b) => {
-            if a <= 3 {
-                Err(NockError)
-            } else {
-                let x = try!(fas(Cell(box Atom(a / 2), b)));
-                fas(Cell(box Atom(2 + a % 2), box x))
-            }
-        }
-
-        _ => Err(NockError),
-    }
-}
-
-fn tar(mut noun: Noun) -> NockResult {
-    // FIXME: Rust won't pattern-match the complex Cell expressions if they're
-    // the top-level expression but will handle fine if they're wrapped in a
-    // trivial tuple.
-    loop {
-        match ((), noun) {
-            ((), Cell(box a, box Cell(box Cell(box b, box c), box d))) => {
-                // Multiple opcodes, split up.
-                let x = try!(tar(n![a.clone(), b, c]));
-                let y = try!(tar(n![a, d]));
-                return Ok(n![x, y]);
-            }
-            ((), Cell(box a, box Cell(box Atom(opcode), box args))) => {
-                match opcode {
-                    0 => return fas(n![args, a]),
-                    1 => return Ok(args),
-                    2 => {
-                        if let Cell(box b, box c) = args {
-                            let x = try!(tar(n![a.clone(), b]));
-                            let y = try!(tar(n![a, c]));
-                            noun = n![x, y];
-                        } else {
-                            break;
-                        }
-                    }
-                    3 => return wut(try!(tar(n![a, args]))),
-                    4 => return lus(try!(tar(n![a, args]))),
-                    5 => return tis(try!(tar(n![a, args]))),
-                    6 => {
-                        if let ((), Cell(box b, box Cell(box c, box d))) = ((), args) {
-                            noun = n![a,
-                                      2,
-                                      n![0, 1],
-                                      2,
-                                      n![1, c, d],
-                                      n![1, 0],
-                                      2,
-                                      n![1, 2, 3],
-                                      n![1, 0],
-                                      4,
-                                      4,
-                                      b];
-                        } else {
-                            break;
-                        }
-                    }
-                    7 => {
-                        if let Cell(box b, box c) = args {
-                            noun = n![a, 2, b, 1, c];
-                        } else {
-                            break;
-                        }
-                    }
-                    8 => {
-                        if let Cell(box b, box c) = args {
-                            noun = n![a, 7, n![n![7, n![0, 1], b], 0, 1], c];
-                        } else {
-                            break;
-                        }
-                    }
-                    9 => {
-                        if let Cell(box b, box c) = args {
-                            noun = n![a, 7, c, 2, n![0, 1], 0, b];
-                        } else {
-                            break;
-                        }
-                    }
-                    10 => {
-                        if let Cell(box Cell(_, box c), box d) = args {
-                            noun = n![a, 8, c, 7, n![0, 3], d];
-                        } else if let Cell(_, box c) = args {
-                            noun = n![a, c]
-                        } else {
-                            break;
-                        }
-                    }
-                    _ => break,
-                }
-            }
-            _ => break,
-        }
-    }
-
-    Err(NockError)
-}
-*/
-
 fn tar(noun: &Noun) -> NockResult {
     if let Some((subject, ops, tail)) = noun.as_triple() {
         loop {
@@ -428,9 +298,7 @@ fn tar(noun: &Noun) -> NockResult {
                     // Huge opcodes are not handled.
                     return Err(NockError);
                 }
-                Atom(x) => {
-                    return run_op(subject, x, tail)
-                }
+                Atom(x) => return run_op(subject, x, tail),
                 Cell(_, _) => {
                     // Autocons
                     let a = try!(tar(&Cell(subject.clone(), ops.clone())));
@@ -453,15 +321,11 @@ fn tar(noun: &Noun) -> NockResult {
                     BigAtom(_) => {
                         unimplemented!();
                     }
-                    _ => {
-                        Err(NockError)
-                    }
+                    _ => Err(NockError),
                 }
             }
             // Just
-            1 => {
-                Ok(tail)
-            }
+            1 => Ok(tail),
             // Fire
             2 => {
                 match *tail {
@@ -470,7 +334,7 @@ fn tar(noun: &Noun) -> NockResult {
                         let q = try!(tar(&Cell(subject, c.clone())));
                         tar(&Cell(p, q))
                     }
-                    _ => { Err(NockError) }
+                    _ => Err(NockError),
                 }
             }
             // Depth
@@ -478,7 +342,7 @@ fn tar(noun: &Noun) -> NockResult {
                 let noun = try!(tar(&Cell(subject, tail)));
                 match *noun {
                     Cell(_, _) => Ok(Rc::new(Atom(0))),
-                    _ => Ok(Rc::new(Atom(1)))
+                    _ => Ok(Rc::new(Atom(1))),
                 }
             }
             // Bump
@@ -489,13 +353,9 @@ fn tar(noun: &Noun) -> NockResult {
                     Atom(u32::MAX) => {
                         Ok(Rc::new(BigAtom(BigUint::from(u32::MAX) + BigUint::from(1u32))))
                     }
-                    Atom(ref x) => {
-                        Ok(Rc::new(Atom(x + 1)))
-                    }
-                    BigAtom(ref x) => {
-                        Ok(Rc::new(BigAtom(x + BigUint::from(1u32))))
-                    }
-                    _ => { Err(NockError) }
+                    Atom(ref x) => Ok(Rc::new(Atom(x + 1))),
+                    BigAtom(ref x) => Ok(Rc::new(BigAtom(x + BigUint::from(1u32)))),
+                    _ => Err(NockError),
                 }
             }
             // Same
@@ -503,14 +363,17 @@ fn tar(noun: &Noun) -> NockResult {
                 let noun = try!(tar(&Cell(subject, tail)));
                 match *noun {
                     Cell(ref a, ref b) => {
-                        if a == b { Ok(Rc::new(Atom(0))) } else {
-                            Ok(Rc::new(Atom(1))) }
+                        if a == b {
+                            Ok(Rc::new(Atom(0)))
+                        } else {
+                            Ok(Rc::new(Atom(1)))
+                        }
                     }
-                    _ => { Err(NockError) }
+                    _ => Err(NockError),
                 }
             }
 
-            _ => { Err(NockError) }
+            _ => Err(NockError),
         }
     }
 }
@@ -534,7 +397,7 @@ fn axis(x: u32, noun: Rc<Noun>) -> NockResult {
                         }
                     }
                 }
-                _ => Err(NockError)
+                _ => Err(NockError),
             }
         }
     }
@@ -591,18 +454,21 @@ mod test {
     fn test_macro() {
         assert_eq!(n![1, 2], Cell(Rc::new(Atom(1)), Rc::new(Atom(2))));
         assert_eq!(n![1, n![2, 3]],
-                   Cell(Rc::new(Atom(1)), Rc::new(Cell(Rc::new(Atom(2)), Rc::new(Atom(3))))));
+                   Cell(Rc::new(Atom(1)),
+                        Rc::new(Cell(Rc::new(Atom(2)), Rc::new(Atom(3))))));
         assert_eq!(n![1, 2, 3],
-                   Cell(Rc::new(Atom(1)), Rc::new(Cell(Rc::new(Atom(2)), Rc::new(Atom(3))))));
+                   Cell(Rc::new(Atom(1)),
+                        Rc::new(Cell(Rc::new(Atom(2)), Rc::new(Atom(3))))));
         assert_eq!(n![n![1, 2], 3],
-                   Cell(Rc::new(Cell(Rc::new(Atom(1)), Rc::new(Atom(2)))), Rc::new(Atom(3))));
+                   Cell(Rc::new(Cell(Rc::new(Atom(1)), Rc::new(Atom(2)))),
+                        Rc::new(Atom(3))));
         assert_eq!(n![n![1, 2], n![3, 4]],
                    Cell(Rc::new(Cell(Rc::new(Atom(1)), Rc::new(Atom(2)))),
                         Rc::new(Cell(Rc::new(Atom(3)), Rc::new(Atom(4))))));
         assert_eq!(n![n![1, 2], n![3, 4], n![5, 6]],
                    Cell(Rc::new(Cell(Rc::new(Atom(1)), Rc::new(Atom(2)))),
                         Rc::new(Cell(Rc::new(Cell(Rc::new(Atom(3)), Rc::new(Atom(4)))),
-                                 Rc::new(Cell(Rc::new(Atom(5)), Rc::new(Atom(6))))))));
+                                     Rc::new(Cell(Rc::new(Atom(5)), Rc::new(Atom(6))))))));
     }
 
     #[test]
@@ -632,9 +498,10 @@ mod test {
         parses("4294967296", BigAtom(BigUint::from(4294967296u64)));
 
         parses("999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999",
-               BigAtom(BigUint::from_str_radix(
-                       "999999999999999999999999999999999999999999999999999999999999",
-                                10).unwrap()));
+               BigAtom(BigUint::from_str_radix("99999999999999999999999999999999999999999999999\
+                                                9999999999999",
+                                               10)
+                           .unwrap()));
 
         parses("[1 2]", n![1, 2]);
         parses("[1 2 3]", n![1, 2, 3]);
