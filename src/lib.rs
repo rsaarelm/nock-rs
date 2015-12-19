@@ -582,6 +582,10 @@ mod test {
 
         // Operator 4: Bump
         produces("[57 4 0 1]", "58");
+        // 32-bit limit, bump up needs bignums if atom is u32
+        produces("[4294967295 4 0 1]", "4294967296");
+        // 64-bit limit, bump up needs bignums if atom is u64
+        produces("[18446744073709551615 4 0 1]", "18446744073709551616");
 
         // Operator 5: Same
         produces("[[1 1] 5 0 1]", "0");
