@@ -401,26 +401,36 @@ fn tar(noun: &Noun) -> NockResult {
                 match *tail {
                     Cell(ref b, ref c) => {
                         let p = try!(tar(&Cell(subject.clone(), b.clone())));
-                        let q = try!(tar(&Cell(p, subject)));
-                        tar(&Cell(q, c.clone()))
+                        tar(&Cell(Rc::new(Cell(p, subject)), c.clone()))
                     }
                     _ => Err(NockError)
                 }
             }
 
             // Call
-            /*
             9 => {
                 match *tail {
                     Cell(ref b, ref c) => {
                         let p = try!(tar(&Cell(subject.clone(), c.clone())));
-                        let q = try!(tar(&n![*p, 0, *b]));
+                        let q = try!(tar(&Cell(p.clone(), Rc::new(Cell(Rc::new(Atom(0)), b.clone())))));
                         tar(&Cell(p, q))
                     }
                     _ => Err(NockError)
                 }
             }
-            */
+
+            // Hint
+            10 => {
+                match *tail {
+                    Cell(ref _b, ref c) => {
+                        // Throw away b.
+                        // XXX: Should check if b is a cell and fail if it
+                        // would crash.
+                        tar(&Cell(subject, c.clone()))
+                    }
+                    _ => Err(NockError)
+                }
+            }
 
             _ => Err(NockError),
         }
