@@ -77,7 +77,7 @@ pub enum Noun {
 impl Noun {
     /// Evaluate the noun using the function `nock(a) = *a` as defined in
     /// the Nock spec.
-    pub fn nock(&self) -> NockResult {
+    pub fn nock(self) -> NockResult {
         tar(self)
     }
 
@@ -290,150 +290,155 @@ pub struct NockError;
 
 pub type NockResult = Result<Rc<Noun>, NockError>;
 
-fn tar(noun: &Noun) -> NockResult {
-    if let Some((subject, ops, tail)) = noun.as_triple() {
-        match *ops {
-            BigAtom(_) => {
-                // Huge opcodes are not handled.
-                return Err(NockError);
-            }
-            Atom(x) => return run_op(subject, x, tail),
-            Cell(_, _) => {
-                // Autocons
-                let a = try!(tar(&Cell(subject.clone(), ops.clone())));
-                let b = try!(tar(&Cell(subject, tail)));
-                return Ok(Rc::new(Cell(a, b)));
-            }
-        }
-    }
-    return Err(NockError);
-
-    fn run_op(subject: Rc<Noun>, op: u32, tail: Rc<Noun>) -> NockResult {
-        use std::u32;
-
-        match op {
-            // Axis
-            0 => {
-                match *tail {
-                    Atom(ref x) => axis(*x, subject),
-                    BigAtom(_) => {
-                        unimplemented!();
-                    }
-                    _ => Err(NockError),
+fn tar(mut noun: Noun) -> NockResult {
+    use std::u32;
+    loop {
+        if let Some((subject, ops, tail)) = noun.as_triple() {
+            match *ops {
+                BigAtom(_) => {
+                    // Huge opcodes are not handled.
+                    return Err(NockError);
                 }
-            }
-            // Just
-            1 => Ok(tail),
-            // Fire
-            2 => {
-                match *tail {
-                    Cell(ref b, ref c) => {
-                        let p = try!(tar(&Cell(subject.clone(), b.clone())));
-                        let q = try!(tar(&Cell(subject, c.clone())));
-                        tar(&Cell(p, q))
-                    }
-                    _ => Err(NockError),
-                }
-            }
-            // Depth
-            3 => {
-                let noun = try!(tar(&Cell(subject, tail)));
-                match *noun {
-                    Cell(_, _) => Ok(Rc::new(Atom(0))),
-                    _ => Ok(Rc::new(Atom(1))),
-                }
-            }
-            // Bump
-            4 => {
-                let noun = try!(tar(&Cell(subject, tail)));
-                match *noun {
-                    // Switch to BigAtoms at regular atom size limit.
-                    Atom(u32::MAX) => {
-                        Ok(Rc::new(BigAtom(BigUint::from(u32::MAX) + BigUint::from(1u32))))
-                    }
-                    Atom(ref x) => Ok(Rc::new(Atom(x + 1))),
-                    BigAtom(ref x) => Ok(Rc::new(BigAtom(x + BigUint::from(1u32)))),
-                    _ => Err(NockError),
-                }
-            }
-            // Same
-            5 => {
-                let noun = try!(tar(&Cell(subject, tail)));
-                match *noun {
-                    Cell(ref a, ref b) => {
-                        if a == b {
-                            Ok(Rc::new(Atom(0)))
-                        } else {
-                            Ok(Rc::new(Atom(1)))
+                Atom(op) => {
+                    match op {
+                        // Axis
+                        0 => {
+                            match *tail {
+                                Atom(ref x) => return axis(*x, subject),
+                                BigAtom(_) => {
+                                    unimplemented!();
+                                }
+                                _ => return Err(NockError),
+                            }
                         }
+                        // Just
+                        1 => return Ok(tail),
+                        // Fire
+                        2 => {
+                            match *tail {
+                                Cell(ref b, ref c) => {
+                                    let p = try!(tar(Cell(subject.clone(), b.clone())));
+                                    let q = try!(tar(Cell(subject, c.clone())));
+                                    noun = Cell(p, q);
+                                    continue;
+                                }
+                                _ => return Err(NockError),
+                            }
+                        }
+                        // Depth
+                        3 => {
+                            let p = try!(tar(Cell(subject, tail)));
+                            return match *p {
+                                Cell(_, _) => Ok(Rc::new(Atom(0))),
+                                _ => Ok(Rc::new(Atom(1))),
+                            };
+                        }
+                        // Bump
+                        4 => {
+                            let p = try!(tar(Cell(subject, tail)));
+                            return match *p {
+                                // Switch to BigAtoms at regular atom size limit.
+                                Atom(u32::MAX) => {
+                                    Ok(Rc::new(BigAtom(BigUint::from(u32::MAX) + BigUint::from(1u32))))
+                                }
+                                Atom(ref x) => Ok(Rc::new(Atom(x + 1))),
+                                BigAtom(ref x) => Ok(Rc::new(BigAtom(x + BigUint::from(1u32)))),
+                                _ => Err(NockError),
+                            };
+                        }
+                        // Same
+                        5 => {
+                            let p = try!(tar(Cell(subject, tail)));
+                            return match *p {
+                                Cell(ref a, ref b) => {
+                                    if a == b {
+                                        return Ok(Rc::new(Atom(0)));
+                                    } else {
+                                        return Ok(Rc::new(Atom(1)));
+                                    }
+                                }
+                                _ => return Err(NockError),
+                            };
+                        }
+
+                        // If
+                        6 => {
+                            if let Some((b, c, d)) = tail.as_triple() {
+                                let p = try!(tar(Cell(subject.clone(), b)));
+                                match *p {
+                                    Atom(0) => noun = Cell(subject, c),
+                                    Atom(1) => noun = Cell(subject, d),
+                                    _ => return Err(NockError)
+                                }
+                                continue;
+                            } else {
+                                return Err(NockError);
+                            }
+                        }
+
+                        // Compose
+                        7 => {
+                            match *tail {
+                                Cell(ref b, ref c) => {
+                                    let p = try!(tar(Cell(subject, b.clone())));
+                                    noun = Cell(p, c.clone());
+                                    continue;
+                                }
+                                _ => return Err(NockError)
+                            }
+                        }
+
+                        // Push
+                        8 => {
+                            match *tail {
+                                Cell(ref b, ref c) => {
+                                    let p = try!(tar(Cell(subject.clone(), b.clone())));
+                                    noun = Cell(Rc::new(Cell(p, subject)), c.clone());
+                                    continue;
+                                }
+                                _ => return Err(NockError)
+                            }
+                        }
+
+                        // Call
+                        9 => {
+                            match *tail {
+                                Cell(ref b, ref c) => {
+                                    let p = try!(tar(Cell(subject.clone(), c.clone())));
+                                    let q = try!(tar(Cell(p.clone(), Rc::new(Cell(Rc::new(Atom(0)), b.clone())))));
+                                    noun = Cell(p, q);
+                                    continue
+                                }
+                                _ => return Err(NockError)
+                            }
+                        }
+
+                        // Hint
+                        10 => {
+                            match *tail {
+                                Cell(ref _b, ref c) => {
+                                    // Throw away b.
+                                    // XXX: Should check if b is a cell and fail if it
+                                    // would crash.
+                                    noun = Cell(subject, c.clone());
+                                    continue;
+                                }
+                                _ => return Err(NockError)
+                            }
+                        }
+
+                        _ => return Err(NockError),
                     }
-                    _ => Err(NockError),
+                }
+                Cell(_, _) => {
+                    // Autocons
+                    let a = try!(tar(Cell(subject.clone(), ops.clone())));
+                    let b = try!(tar(Cell(subject, tail)));
+                    return Ok(Rc::new(Cell(a, b)));
                 }
             }
-
-            // If
-            6 => {
-                if let Some((b, c, d)) = tail.as_triple() {
-                    let p = try!(tar(&Cell(subject.clone(), b)));
-                    match *p {
-                        Atom(0) => tar(&Cell(subject, c)),
-                        Atom(1) => tar(&Cell(subject, d)),
-                        _ => Err(NockError)
-                    }
-                } else {
-                    Err(NockError)
-                }
-            }
-
-            // Compose
-            7 => {
-                match *tail {
-                    Cell(ref b, ref c) => {
-                        let p = try!(tar(&Cell(subject, b.clone())));
-                        tar(&Cell(p, c.clone()))
-                    }
-                    _ => Err(NockError)
-                }
-            }
-
-            // Push
-            8 => {
-                match *tail {
-                    Cell(ref b, ref c) => {
-                        let p = try!(tar(&Cell(subject.clone(), b.clone())));
-                        tar(&Cell(Rc::new(Cell(p, subject)), c.clone()))
-                    }
-                    _ => Err(NockError)
-                }
-            }
-
-            // Call
-            9 => {
-                match *tail {
-                    Cell(ref b, ref c) => {
-                        let p = try!(tar(&Cell(subject.clone(), c.clone())));
-                        let q = try!(tar(&Cell(p.clone(), Rc::new(Cell(Rc::new(Atom(0)), b.clone())))));
-                        tar(&Cell(p, q))
-                    }
-                    _ => Err(NockError)
-                }
-            }
-
-            // Hint
-            10 => {
-                match *tail {
-                    Cell(ref _b, ref c) => {
-                        // Throw away b.
-                        // XXX: Should check if b is a cell and fail if it
-                        // would crash.
-                        tar(&Cell(subject, c.clone()))
-                    }
-                    _ => Err(NockError)
-                }
-            }
-
-            _ => Err(NockError),
         }
+        return Err(NockError);
     }
 }
 
