@@ -53,6 +53,7 @@ extern crate num;
 use std::fmt;
 use std::iter;
 use std::str;
+use std::hash::{Hash, Hasher, SipHasher};
 use std::rc::Rc;
 use num::bigint::BigUint;
 use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
@@ -169,7 +170,44 @@ impl Noun {
             _ => { false }
         }
     }
+
+    /// A hash function that does not recurse into the noun beyond the limit.
+    ///
+    /// Useful for hashing potentially extremely large nouns.
+    fn bounded_hash<H>(&self, state: &mut H, limit: usize) where H: Hasher {
+        match self {
+            &Atom(ref x) => x.hash(state),
+            &BigAtom(ref x) => x.hash(state),
+            &Cell(ref a, ref b) => {
+                if limit > 0 {
+                    a.bounded_hash(state, limit - 1);
+                    b.bounded_hash(state, limit - 1);
+                }
+            }
+        }
+    }
+
+    /// Generate a pseudorandom identifier for this noun.
+    pub fn id(&self) -> String {
+        static VS: [char; 5] = ['a', 'e', 'i', 'o', 'u'];
+        static CS: [char; 14] = ['b', 'd', 'f', 'g', 'j', 'k', 'm', 'n', 'p', 'r', 's', 't', 'v', 'z'];
+
+        let mut s = SipHasher::new();
+        self.hash(&mut s);
+        let hash = s.finish();
+        let (hash, c1) = (hash / CS.len() as u64, hash % CS.len() as u64);
+        let (hash, v) = (hash / VS.len() as u64, hash % VS.len() as u64);
+        let (_, c2) = (hash / CS.len() as u64, hash % CS.len() as u64);
+        [CS[c1 as usize], VS[v as usize], CS[c2 as usize]].iter().map(|&x| x).collect()
+    }
 }
+
+impl Hash for Noun {
+    fn hash<H>(&self, state: &mut H) where H: Hasher {
+        self.bounded_hash(state, 32);
+    }
+}
+
 
 impl Into<Noun> for u32 {
     fn into(self) -> Noun {
