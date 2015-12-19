@@ -117,6 +117,12 @@ impl Noun {
 
         Some(ret)
     }
+
+    /// Build either small or large atom, depending on the size of the
+    /// BigUint.
+    pub fn from_biguint(num: BigUint) -> Noun {
+        num.to_u32().map_or(BigAtom(num), |x| Atom(x))
+    }
 }
 
 impl Into<Noun> for u32 {
@@ -210,9 +216,6 @@ impl str::FromStr for Noun {
         /// Parse an atom, a positive integer.
         fn parse_atom<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>)
                                                 -> Result<Noun, ParseError> {
-            use std::u32;
-            use num::traits::ToPrimitive;
-
             let mut buf = Vec::new();
 
             loop {
@@ -248,11 +251,7 @@ impl str::FromStr for Noun {
                                   .parse()
                                   .expect("Failed to parse atom");
 
-            if num <= BigUint::from_u32(u32::MAX).unwrap() {
-                Ok(Noun::Atom(num.to_u32().expect("Failed to make 32-bit atom")))
-            } else {
-                Ok(Noun::BigAtom(num))
-            }
+            Ok(Noun::from_biguint(num))
         }
 
         /// Parse a cell, a bracketed pair of nouns.
@@ -509,7 +508,7 @@ mod nock {
 mod test {
     use std::rc::Rc;
     use num::bigint::BigUint;
-    use num::traits::FromPrimitive;
+    use num::traits::{FromPrimitive, One};
     use super::Noun::{self, Atom, BigAtom, Cell};
 
     fn parses(input: &str, output: super::Noun) {
@@ -526,6 +525,18 @@ mod test {
                                 .ok()
                                 .expect("Eval failed")),
                    output);
+    }
+
+    #[test]
+    fn test_from_biguint() {
+        assert_eq!(Noun::from_biguint(BigUint::one()), Atom(1));
+        assert_eq!(Noun::from_biguint(BigUint::one()), Atom(1));
+
+        let small = BigUint::from_u64(4294967295).unwrap();
+        assert_eq!(Noun::from_biguint(small), Atom(4294967295));
+
+        let big = BigUint::from_u64(4294967296).unwrap();
+        assert_eq!(Noun::from_biguint(big.clone()), BigAtom(big));
     }
 
     #[test]
