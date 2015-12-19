@@ -22,8 +22,7 @@ fn strings(noun: &nock::Noun) {
             strings(a);
             strings(b);
         }
-        &nock::Noun::Atom(a) if a < 0x2121 => {
-        }
+        &nock::Noun::Atom(a) if a < 0x2121 => {}
         _ => {
             if let Some(s) = noun.to_cord() {
                 println!("{}", s);

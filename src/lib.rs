@@ -69,7 +69,8 @@ use num::traits::{ToPrimitive, Zero};
 pub enum Noun {
     /// A single positive integer
     Atom(u32),
-    BigAtom(BigUint),
+    /// A single positive large integer
+    BigAtom(BigUint), // Might want to make this Rc too to ensure Noun stays lightweight.
     /// A a pair of two nouns
     Cell(Rc<Noun>, Rc<Noun>),
 }
@@ -365,7 +366,8 @@ fn tar(mut noun: Noun) -> NockResult {
                             return match *p {
                                 // Switch to BigAtoms at regular atom size limit.
                                 Atom(u32::MAX) => {
-                                    Ok(Rc::new(BigAtom(BigUint::from(u32::MAX) + BigUint::from(1u32))))
+                                    Ok(Rc::new(BigAtom(BigUint::from(u32::MAX) +
+                                                       BigUint::from(1u32))))
                                 }
                                 Atom(ref x) => Ok(Rc::new(Atom(x + 1))),
                                 BigAtom(ref x) => Ok(Rc::new(BigAtom(x + BigUint::from(1u32)))),
@@ -394,7 +396,7 @@ fn tar(mut noun: Noun) -> NockResult {
                                 match *p {
                                     Atom(0) => noun = Cell(subject, c),
                                     Atom(1) => noun = Cell(subject, d),
-                                    _ => return Err(NockError)
+                                    _ => return Err(NockError),
                                 }
                                 continue;
                             } else {
@@ -410,7 +412,7 @@ fn tar(mut noun: Noun) -> NockResult {
                                     noun = Cell(p, c.clone());
                                     continue;
                                 }
-                                _ => return Err(NockError)
+                                _ => return Err(NockError),
                             }
                         }
 
@@ -422,7 +424,7 @@ fn tar(mut noun: Noun) -> NockResult {
                                     noun = Cell(Rc::new(Cell(p, subject)), c.clone());
                                     continue;
                                 }
-                                _ => return Err(NockError)
+                                _ => return Err(NockError),
                             }
                         }
 
@@ -431,11 +433,13 @@ fn tar(mut noun: Noun) -> NockResult {
                             match *tail {
                                 Cell(ref b, ref c) => {
                                     let p = try!(tar(Cell(subject.clone(), c.clone())));
-                                    let q = try!(tar(Cell(p.clone(), Rc::new(Cell(Rc::new(Atom(0)), b.clone())))));
+                                    let q = try!(tar(Cell(p.clone(),
+                                                          Rc::new(Cell(Rc::new(Atom(0)),
+                                                                       b.clone())))));
                                     noun = Cell(p, q);
-                                    continue
+                                    continue;
                                 }
-                                _ => return Err(NockError)
+                                _ => return Err(NockError),
                             }
                         }
 
@@ -449,7 +453,7 @@ fn tar(mut noun: Noun) -> NockResult {
                                     noun = Cell(subject, c.clone());
                                     continue;
                                 }
-                                _ => return Err(NockError)
+                                _ => return Err(NockError),
                             }
                         }
 
@@ -678,6 +682,7 @@ mod test {
     fn test_cord() {
         assert_eq!("0".parse::<Noun>().unwrap().to_cord(), Some("".to_string()));
         assert_eq!("190".parse::<Noun>().unwrap().to_cord(), None);
-        assert_eq!("7303014".parse::<Noun>().unwrap().to_cord(), Some("foo".to_string()));
+        assert_eq!("7303014".parse::<Noun>().unwrap().to_cord(),
+                   Some("foo".to_string()));
     }
 }
