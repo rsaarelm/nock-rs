@@ -200,6 +200,80 @@ impl Noun {
         let (_, c2) = (hash / CS.len() as u64, hash % CS.len() as u64);
         [CS[c1 as usize], VS[v as usize], CS[c2 as usize]].iter().map(|&x| x).collect()
     }
+
+    fn write(&self, f: &mut fmt::Formatter, depth: u64, use_symbols: bool) -> fmt::Result {
+        let multiline = !use_symbols && self.is_larger_than(16);
+
+        let is_tiny = !self.is_larger_than(4);
+
+        if use_symbols && !is_tiny && depth > 1 {
+            return write!(f, "{}", self.id());
+        }
+
+        let sep = if multiline && !use_symbols {
+            "\n"
+        } else {
+            " "
+        };
+        match self {
+            &Atom(ref n) => return dot_separators(f, &n),
+            &BigAtom(ref n) => return dot_separators(f, &n),
+            &Cell(ref a, ref b) => {
+                if use_symbols && !is_tiny {
+                    try!(write!(f, "{}:", self.id()));
+                }
+
+                try!(write!(f, "["));
+                try!(a.write(f, depth + 1, use_symbols));
+                try!(write!(f, "{}", sep));
+                // List pretty-printer.
+                let mut cur = b;
+
+                let mut list_pos = 0;
+                loop {
+                    if multiline {
+                        use std::cmp::min;
+                        for _ in 0..(min(depth, 64)) {
+                            try!(write!(f, " "));
+                        }
+                    }
+                    match **cur {
+                        Cell(ref a, ref b) => {
+                            if use_symbols && list_pos + depth > 3 {
+                                return write!(f, "{}]", cur.id());
+                            } else {
+                                try!(a.write(f, depth + 1, use_symbols));
+                                try!(write!(f, "{}", sep));
+                                cur = &b;
+                            }
+                        }
+                        Atom(ref n) => {
+                            try!(dot_separators(f, &n));
+                            return write!(f, "]");
+                        }
+                        BigAtom(ref n) => {
+                            try!(dot_separators(f, &n));
+                            return write!(f, "]");
+                        }
+                    }
+
+                    list_pos += 1;
+                }
+            }
+        }
+
+        fn dot_separators<T: fmt::Display>(f: &mut fmt::Formatter, item: &T) -> fmt::Result {
+            let s = format!("{}", item);
+            let phase = s.len() % 3;
+            for (i, c) in s.chars().enumerate() {
+                if i > 0 && i % 3 == phase {
+                    try!(write!(f, "."));
+                }
+                try!(write!(f, "{}", c));
+            }
+            Ok(())
+        }
+    }
 }
 
 impl Hash for Noun {
@@ -233,63 +307,15 @@ impl iter::FromIterator<Noun> for Noun {
 
 impl fmt::Display for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        return w(self, f, 0);
+        return self.write(f, 0, false);
+    }
+}
 
-        fn w(noun: &Noun, f: &mut fmt::Formatter, depth: u64) -> fmt::Result {
-            let is_large = noun.is_larger_than(16);
-
-            let sep = if is_large {
-                "\n"
-            } else {
-                " "
-            };
-            match noun {
-                &Atom(ref n) => return dot_separators(f, &n),
-                &BigAtom(ref n) => return dot_separators(f, &n),
-                &Cell(ref a, ref b) => {
-                    try!(write!(f, "["));
-                    try!(w(a, f, depth + 1));
-                    try!(write!(f, "{}", sep));
-                    // List pretty-printer.
-                    let mut cur = b;
-                    loop {
-                        if is_large {
-                            use std::cmp::min;
-                            for _ in 0..(min(depth, 64)) {
-                                try!(write!(f, " "));
-                            }
-                        }
-                        match **cur {
-                            Cell(ref a, ref b) => {
-                                try!(w(a, f, depth + 1));
-                                try!(write!(f, "{}", sep));
-                                cur = &b;
-                            }
-                            Atom(ref n) => {
-                                try!(dot_separators(f, &n));
-                                return write!(f, "]");
-                            }
-                            BigAtom(ref n) => {
-                                try!(dot_separators(f, &n));
-                                return write!(f, "]");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        fn dot_separators<T: fmt::Display>(f: &mut fmt::Formatter, item: &T) -> fmt::Result {
-            let s = format!("{}", item);
-            let phase = s.len() % 3;
-            for (i, c) in s.chars().enumerate() {
-                if i > 0 && i % 3 == phase {
-                    try!(write!(f, "."));
-                }
-                try!(write!(f, "{}", c));
-            }
-            Ok(())
-        }
+// Let's abuse a custom formatter to do a limited length version of a noun
+// when you use {:e}.
+impl fmt::LowerExp for Noun {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        return self.write(f, 0, true);
     }
 }
 
