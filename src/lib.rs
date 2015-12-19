@@ -371,6 +371,57 @@ fn tar(noun: &Noun) -> NockResult {
                 }
             }
 
+            // If
+            6 => {
+                if let Some((b, c, d)) = tail.as_triple() {
+                    let p = try!(tar(&Cell(subject.clone(), b)));
+                    match *p {
+                        Atom(0) => tar(&Cell(subject, c)),
+                        Atom(1) => tar(&Cell(subject, d)),
+                        _ => Err(NockError)
+                    }
+                } else {
+                    Err(NockError)
+                }
+            }
+
+            // Compose
+            7 => {
+                match *tail {
+                    Cell(ref b, ref c) => {
+                        let p = try!(tar(&Cell(subject, b.clone())));
+                        tar(&Cell(p, c.clone()))
+                    }
+                    _ => Err(NockError)
+                }
+            }
+
+            // Push
+            8 => {
+                match *tail {
+                    Cell(ref b, ref c) => {
+                        let p = try!(tar(&Cell(subject.clone(), b.clone())));
+                        let q = try!(tar(&Cell(p, subject)));
+                        tar(&Cell(q, c.clone()))
+                    }
+                    _ => Err(NockError)
+                }
+            }
+
+            // Call
+            /*
+            9 => {
+                match *tail {
+                    Cell(ref b, ref c) => {
+                        let p = try!(tar(&Cell(subject.clone(), c.clone())));
+                        let q = try!(tar(&n![*p, 0, *b]));
+                        tar(&Cell(p, q))
+                    }
+                    _ => Err(NockError)
+                }
+            }
+            */
+
             _ => Err(NockError),
         }
     }
@@ -564,12 +615,15 @@ mod test {
     }
 
     #[test]
-    fn test_nock_6_to_10() {
+    fn test_if() {
         // Operator 6: If
         produces("[[40 43] 6 [3 0 1] [4 0 2] [4 0 1]]", "41");
         produces("[42 6 [1 0] [4 0 1] 1 233]", "43");
         produces("[42 6 [1 1] [4 0 1] 1 233]", "233");
+    }
 
+    #[test]
+    fn test_misc_nock() {
         // Operator 7: Compose
         produces("[[42 44] [7 [4 0 3] [3 0 1]]]", "1");
 
