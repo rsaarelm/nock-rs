@@ -455,9 +455,7 @@ fn tar(mut noun: Noun) -> NockResult {
                         0 => {
                             match *tail {
                                 Atom(ref x) => return axis(*x, subject),
-                                BigAtom(_) => {
-                                    unimplemented!();
-                                }
+                                BigAtom(ref x) => return big_axis(x.clone(), subject),
                                 _ => return Err(NockError),
                             }
                         }
@@ -607,11 +605,11 @@ fn axis(x: u32, noun: Rc<Noun>) -> NockResult {
                     } else if n == 3 {
                         Ok(b.clone())
                     } else {
-                        let x = try!(axis(x / 2, noun.clone()));
+                        let p = try!(axis(x / 2, noun.clone()));
                         if n % 2 == 0 {
-                            axis(2, x)
+                            axis(2, p)
                         } else {
-                            axis(3, x)
+                            axis(3, p)
                         }
                     }
                 }
@@ -621,6 +619,26 @@ fn axis(x: u32, noun: Rc<Noun>) -> NockResult {
     }
 }
 
+fn big_axis(x: BigUint, noun: Rc<Noun>) -> NockResult {
+    // Assuming x is actually big, will switch to regular axis when we go down
+    // in size.
+    if let Cell(_, _) = *noun {
+        let half = x.clone() >> 1;
+        let p = try!(if half.bits() < 30 {
+            axis(half.to_u32().unwrap(), noun.clone())
+        } else {
+            big_axis(half, noun.clone())
+        });
+
+        if x % BigUint::from_u32(2).unwrap() == BigUint::zero() {
+            axis(2, p)
+        } else {
+            axis(3, p)
+        }
+    } else {
+        Err(NockError)
+    }
+}
 
 
 // Re-export hack for testing macros.
