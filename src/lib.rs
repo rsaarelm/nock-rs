@@ -98,25 +98,14 @@ impl Noun {
     /// The atom is interpreted as a string of ASCII bytes in least significant
     /// byte first order. The atom must evaluate entirely into printable ASCII-7.
     pub fn to_cord(&self) -> Option<String> {
-        let mut atom;
+        let atom;
         match self {
             &Atom(ref x) => atom = BigUint::from_u32(*x).unwrap(),
             &BigAtom(ref x) => atom = x.clone(),
             _ => return None,
         }
 
-        let mut ret = String::new();
-        while atom > Zero::zero() {
-            let ch = (atom.clone() % BigUint::from_u32(0x100).unwrap()).to_u8().unwrap();
-            if ch >= 0x20 && ch < 0x80 {
-                ret.push(ch as char);
-            } else {
-                return None;
-            }
-            atom = atom >> 8;
-        }
-
-        Some(ret)
+        parse_cord(atom)
     }
 
     /// Build either small or large atom, depending on the size of the
@@ -201,7 +190,7 @@ impl Noun {
         [CS[c1 as usize], VS[v as usize], CS[c2 as usize]].iter().map(|&x| x).collect()
     }
 
-    fn write(&self, f: &mut fmt::Formatter, depth: u64, use_symbols: bool) -> fmt::Result {
+    fn write(&self, f: &mut fmt::Formatter, depth: u64, use_symbols: bool, show_cord: bool) -> fmt::Result {
         let multiline = !use_symbols && self.is_larger_than(16);
 
         let is_tiny = !self.is_larger_than(4);
@@ -216,15 +205,15 @@ impl Noun {
             " "
         };
         match self {
-            &Atom(ref n) => return dot_separators(f, &n),
-            &BigAtom(ref n) => return dot_separators(f, &n),
+            &Atom(ref n) => return show_atom(f, &BigUint::from_u32(*n).unwrap(), show_cord),
+            &BigAtom(ref n) => return show_atom(f, &n, show_cord),
             &Cell(ref a, ref b) => {
                 if use_symbols && !is_tiny {
                     try!(write!(f, "{}:", self.id()));
                 }
 
                 try!(write!(f, "["));
-                try!(a.write(f, depth + 1, use_symbols));
+                try!(a.write(f, depth + 1, use_symbols, show_cord));
                 try!(write!(f, "{}", sep));
                 // List pretty-printer.
                 let mut cur = b;
@@ -242,17 +231,17 @@ impl Noun {
                             if use_symbols && list_pos + depth > 3 {
                                 return write!(f, "{}]", cur.id());
                             } else {
-                                try!(a.write(f, depth + 1, use_symbols));
+                                try!(a.write(f, depth + 1, use_symbols, show_cord));
                                 try!(write!(f, "{}", sep));
                                 cur = &b;
                             }
                         }
                         Atom(ref n) => {
-                            try!(dot_separators(f, &n));
+                            try!(show_atom(f, &BigUint::from_u32(*n).unwrap(), show_cord));
                             return write!(f, "]");
                         }
                         BigAtom(ref n) => {
-                            try!(dot_separators(f, &n));
+                            try!(show_atom(f, &n, show_cord));
                             return write!(f, "]");
                         }
                     }
@@ -262,7 +251,15 @@ impl Noun {
             }
         }
 
-        fn dot_separators<T: fmt::Display>(f: &mut fmt::Formatter, item: &T) -> fmt::Result {
+        fn show_atom(f: &mut fmt::Formatter, item: &BigUint, show_cord: bool) -> fmt::Result {
+            // 0x2121 == '!!', smallest number that produces a non-whitespace
+            // multi-character printable ASCII string.
+            if show_cord && item >= &BigUint::from_u32(0x2121).unwrap() {
+                if let Some(cord) = parse_cord(item.clone()) {
+                    return write!(f, "%{}", cord);
+                }
+            }
+
             let s = format!("{}", item);
             let phase = s.len() % 3;
             for (i, c) in s.chars().enumerate() {
@@ -307,7 +304,7 @@ impl iter::FromIterator<Noun> for Noun {
 
 impl fmt::Display for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        return self.write(f, 0, false);
+        return self.write(f, 0, false, false);
     }
 }
 
@@ -315,7 +312,14 @@ impl fmt::Display for Noun {
 // when you use {:e}.
 impl fmt::LowerExp for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        return self.write(f, 0, true);
+        return self.write(f, 0, true, false);
+    }
+}
+
+// And {:x} for trying to replace suitable-looking atoms with strings.
+impl fmt::LowerHex for Noun {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        return self.write(f, 0, false, true);
     }
 }
 
@@ -422,6 +426,21 @@ impl str::FromStr for Noun {
             }
         }
     }
+}
+
+fn parse_cord(mut atom: BigUint) -> Option<String> {
+    let mut ret = String::new();
+    while atom > Zero::zero() {
+        let ch = (atom.clone() % BigUint::from_u32(0x100).unwrap()).to_u8().unwrap();
+        if ch >= 0x20 && ch < 0x80 {
+            ret.push(ch as char);
+        } else {
+            return None;
+        }
+        atom = atom >> 8;
+    }
+
+    Some(ret)
 }
 
 /// Macro for noun literals.
