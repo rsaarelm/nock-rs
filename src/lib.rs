@@ -178,6 +178,9 @@ impl Noun {
 
     /// Generate a pseudorandom identifier for this noun.
     pub fn id(&self) -> String {
+        // TODO: Figure out the urbit/hoon version for this, which does the
+        // "106.umz" style abbrevs with the number being the arm count in the
+        // cell.
         static VS: [char; 5] = ['a', 'e', 'i', 'o', 'u'];
         static CS: [char; 14] = ['b', 'd', 'f', 'g', 'j', 'k', 'm', 'n', 'p', 'r', 's', 't', 'v', 'z'];
 
