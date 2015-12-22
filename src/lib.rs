@@ -119,10 +119,8 @@ impl Noun {
     /// May end up running for a very long time with nontrivial nouns.
     pub fn size(&self) -> u64 {
         match self {
-            &Cell(ref a, ref b) => {
-                a.size() + b.size()
-            }
-            _ => { 1 }
+            &Cell(ref a, ref b) => a.size() + b.size(),
+            _ => 1,
         }
     }
 
@@ -138,11 +136,15 @@ impl Noun {
         }
         match self {
             &Cell(ref a, ref b) => {
-                if a.is_larger_than(size - 1) { return true; }
-                if b.is_larger_than(size - 1) { return true; }
+                if a.is_larger_than(size - 1) {
+                    return true;
+                }
+                if b.is_larger_than(size - 1) {
+                    return true;
+                }
                 a.size() + b.size() > size
             }
-            _ => { false }
+            _ => false,
         }
     }
 
@@ -153,17 +155,17 @@ impl Noun {
             return true;
         }
         match self {
-            &Cell(_, ref b) => {
-                b.is_wider_than(size - 1)
-            }
-            _ => { false }
+            &Cell(_, ref b) => b.is_wider_than(size - 1),
+            _ => false,
         }
     }
 
     /// A hash function that does not recurse into the noun beyond the limit.
     ///
     /// Useful for hashing potentially extremely large nouns.
-    fn bounded_hash<H>(&self, state: &mut H, limit: usize) where H: Hasher {
+    fn bounded_hash<H>(&self, state: &mut H, limit: usize)
+        where H: Hasher
+    {
         match self {
             &Atom(ref x) => x.hash(state),
             &BigAtom(ref x) => x.hash(state),
@@ -182,7 +184,8 @@ impl Noun {
         // "106.umz" style abbrevs with the number being the arm count in the
         // cell.
         static VS: [char; 5] = ['a', 'e', 'i', 'o', 'u'];
-        static CS: [char; 14] = ['b', 'd', 'f', 'g', 'j', 'k', 'm', 'n', 'p', 'r', 's', 't', 'v', 'z'];
+        static CS: [char; 14] = ['b', 'd', 'f', 'g', 'j', 'k', 'm', 'n', 'p', 'r', 's', 't', 'v',
+                                 'z'];
 
         let mut s = SipHasher::new();
         self.hash(&mut s);
@@ -193,7 +196,12 @@ impl Noun {
         [CS[c1 as usize], VS[v as usize], CS[c2 as usize]].iter().map(|&x| x).collect()
     }
 
-    fn write(&self, f: &mut fmt::Formatter, depth: u64, use_symbols: bool, show_cord: bool) -> fmt::Result {
+    fn write(&self,
+             f: &mut fmt::Formatter,
+             depth: u64,
+             use_symbols: bool,
+             show_cord: bool)
+             -> fmt::Result {
         let multiline = !use_symbols && self.is_larger_than(16);
 
         let is_tiny = !self.is_larger_than(4);
@@ -277,7 +285,9 @@ impl Noun {
 }
 
 impl Hash for Noun {
-    fn hash<H>(&self, state: &mut H) where H: Hasher {
+    fn hash<H>(&self, state: &mut H)
+        where H: Hasher
+    {
         self.bounded_hash(state, 32);
     }
 }
