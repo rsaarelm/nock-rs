@@ -292,10 +292,15 @@ impl Hash for Noun {
     }
 }
 
-
 impl Into<Noun> for u32 {
     fn into(self) -> Noun {
         Noun::Atom(self)
+    }
+}
+
+impl Into<Noun> for BigUint {
+    fn into(self) -> Noun {
+        Noun::from_biguint(self)
     }
 }
 
@@ -732,6 +737,10 @@ mod test {
                    Cell(Rc::new(Cell(Rc::new(Atom(1)), Rc::new(Atom(2)))),
                         Rc::new(Cell(Rc::new(Cell(Rc::new(Atom(3)), Rc::new(Atom(4)))),
                                      Rc::new(Cell(Rc::new(Atom(5)), Rc::new(Atom(6))))))));
+
+        let big = BigUint::from_u64(4294967296).unwrap();
+        assert_eq!(n![0, big.clone()],
+                   Cell(Rc::new(Atom(0)), Rc::new(BigAtom(big))));
     }
 
     #[test]
