@@ -77,6 +77,20 @@ pub enum Noun {
 }
 
 impl Noun {
+    /// Construct an atom equivalent to a list of bytes.
+    ///
+    /// If the bytes are a text string, the atom will be a cord with that
+    /// text.
+    pub fn from_bytes(bytes: &[u8]) -> Noun {
+        let mut x = Zero::zero();
+        for i in bytes.iter().rev() {
+            x = x << 8;
+            x = x + BigUint::from_u8(*i).unwrap();
+        }
+
+        Noun::from_biguint(x)
+    }
+
     /// Evaluate the noun using the function `nock(a) = *a` as defined in
     /// the Nock spec.
     pub fn nock(self) -> NockResult {
@@ -892,5 +906,16 @@ mod test {
         assert_eq!("190".parse::<Noun>().unwrap().to_cord(), None);
         assert_eq!("7303014".parse::<Noun>().unwrap().to_cord(),
                    Some("foo".to_string()));
+    }
+
+    #[test]
+    fn test_from_bytes() {
+        assert_eq!(Noun::from_bytes("".as_bytes()), Noun::Atom(0));
+        assert_eq!(Noun::from_bytes("a".as_bytes()).to_cord(),
+                   Some("a".to_string()));
+        assert_eq!(Noun::from_bytes("nock".as_bytes()).to_cord(),
+                   Some("nock".to_string()));
+        assert_eq!(Noun::from_bytes("antidisestablishmentarianism".as_bytes()).to_cord(),
+                   Some("antidisestablishmentarianism".to_string()));
     }
 }
