@@ -915,6 +915,7 @@ mod test {
                    Some("a".to_string()));
         assert_eq!(Noun::from_bytes("nock".as_bytes()).to_cord(),
                    Some("nock".to_string()));
+        assert_eq!(Noun::from_bytes("nock".as_bytes()), Noun::Atom(1801678702));
         assert_eq!(Noun::from_bytes("antidisestablishmentarianism".as_bytes()).to_cord(),
                    Some("antidisestablishmentarianism".to_string()));
     }
