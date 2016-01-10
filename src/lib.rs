@@ -64,8 +64,9 @@ use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
 /// # Examples
 ///
 /// ```
-/// let noun: nock::Noun = "[19 4 0 1]".parse().unwrap();
-/// assert_eq!(format!("{}", noun.nock().unwrap()), "20");
+/// let subject: nock::Noun = "19".parse().unwrap();
+/// let formula: nock::Noun = "[4 0 1]".parse().unwrap();
+/// assert_eq!(format!("{}", nock::nock_on(&subject, &formula).unwrap()), "20");
 /// ```
 #[derive(Clone, PartialEq, Eq)]
 pub enum Noun {
@@ -90,12 +91,6 @@ impl Noun {
         }
 
         Noun::from_biguint(x)
-    }
-
-    /// Evaluate the noun using the function `nock(a) = *a` as defined in
-    /// the Nock spec.
-    pub fn nock(self) -> NockResult {
-        tar(self)
     }
 
     /// If the noun has structure [a [b c]], return a tuple of a, b and c.
@@ -342,6 +337,11 @@ pub struct NockError;
 
 pub type NockResult = Result<Rc<Noun>, NockError>;
 
+/// Evaluate the nock `*[subject formula]`
+pub fn nock_on(subject: &Noun, formula: &Noun) -> NockResult {
+    tar(Cell(Rc::new(subject.clone()), Rc::new(formula.clone())))
+}
+
 fn tar(mut noun: Noun) -> NockResult {
     use std::u32;
     loop {
@@ -557,14 +557,14 @@ mod tests {
     }
 
     fn produces(input: &str, output: &str) {
-        assert_eq!(format!("{}",
-                           input.parse::<Noun>()
-                                .ok()
-                                .expect("Parsing failed")
-                                .nock()
-                                .ok()
-                                .expect("Eval failed")),
-                   output);
+        use super::nock_on;
+
+        let (s, f) = match input.parse::<Noun>() {
+            Err(_) => panic!("Parsing failed"),
+            Ok(Cell(s, f)) => (s, f),
+            _ => panic!("Unnockable input"),
+        };
+        assert_eq!(format!("{}", nock_on(&s, &f).ok().expect("Eval failed")), output);
     }
 
     #[test]

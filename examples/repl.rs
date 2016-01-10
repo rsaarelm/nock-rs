@@ -11,13 +11,13 @@ fn main() {
         match io::stdin().read_line(&mut input) {
             Ok(_) => {
                 match input.parse::<nock::Noun>() {
-                    Ok(noun) => {
-                        match noun.nock() {
+                    Ok(nock::Noun::Cell(s, f)) => {
+                        match nock::nock_on(&s, &f) {
                             Ok(eval) => println!("{}", eval),
                             Err(_) => println!("Eval error"),
                         }
                     }
-                    Err(_) => println!("Syntax error"),
+                    _ => println!("Syntax error"),
                 }
             }
 
