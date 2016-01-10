@@ -58,8 +58,12 @@ use std::str;
 use std::rc::Rc;
 use num::bigint::BigUint;
 use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
+use num::integer::Integer;
 
-/// A Nock noun, the basic unit of representation
+/// A Nock noun, the basic unit of representation.
+///
+/// A noun is an atom or a cell. An atom is any natural number. A cell is any
+/// ordered pair of nouns.
 ///
 /// # Examples
 ///
@@ -80,6 +84,10 @@ pub enum Noun {
 
 impl Noun {
     /// Construct an atom equivalent to a list of bytes.
+    ///
+    /// Bytes before the first non-zero byte in the byte slice will be
+    /// ignored. This is because the most significant bit of the binary
+    /// representation of an atom will always be 1.
     ///
     /// If the bytes are a text string, the atom will be a cord with that
     /// text.
@@ -105,17 +113,29 @@ impl Noun {
 
     /// Try to represent a Nock atom as a string.
     ///
-    /// The atom is interpreted as a string of ASCII bytes in least significant
-    /// byte first order. The atom must evaluate entirely into printable ASCII-7.
+    /// The atom is interpreted as a string of UTF-8 bytes in least significant
+    /// byte first order.
     pub fn to_cord(&self) -> Option<String> {
-        let atom;
+        self.to_bytes().and_then(|b| String::from_utf8(b).ok())
+    }
+
+    /// If the noun is an atom, build a byte slice representation of it.
+    pub fn to_bytes(&self) -> Option<Vec<u8>> {
+        let mut ret = Vec::new();
+        let mut atom;
         match self {
             &Atom(ref x) => atom = BigUint::from_u32(*x).unwrap(),
             &BigAtom(ref x) => atom = x.clone(),
             _ => return None,
         }
 
-        parse_cord(atom)
+        while atom > Zero::zero() {
+            let (a, byte) = atom.div_mod_floor(&BigUint::from_u32(0x100).unwrap());
+            ret.push(byte.to_u8().unwrap());
+            atom = a;
+        }
+
+        Some(ret)
     }
 
     /// Build either small or large atom, depending on the size of the
@@ -304,21 +324,6 @@ impl str::FromStr for Noun {
             }
         }
     }
-}
-
-fn parse_cord(mut atom: BigUint) -> Option<String> {
-    let mut ret = String::new();
-    while atom > Zero::zero() {
-        let ch = (atom.clone() % BigUint::from_u32(0x100).unwrap()).to_u8().unwrap();
-        if ch >= 0x20 && ch < 0x80 {
-            ret.push(ch as char);
-        } else {
-            return None;
-        }
-        atom = atom >> 8;
-    }
-
-    Some(ret)
 }
 
 /// Macro for noun literals.
@@ -564,7 +569,8 @@ mod tests {
             Ok(Cell(s, f)) => (s, f),
             _ => panic!("Unnockable input"),
         };
-        assert_eq!(format!("{}", nock_on(&s, &f).ok().expect("Eval failed")), output);
+        assert_eq!(format!("{}", nock_on(&s, &f).ok().expect("Eval failed")),
+                   output);
     }
 
     #[test]
