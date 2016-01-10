@@ -48,6 +48,8 @@
 
 #![crate_name="nock"]
 
+#![feature(test)]
+extern crate test;
 extern crate num;
 
 use std::fmt;
@@ -698,10 +700,11 @@ mod nock {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::rc::Rc;
     use num::bigint::BigUint;
     use num::traits::{FromPrimitive, One};
+    use test::Bencher;
     use super::Noun::{self, Atom, BigAtom, Cell};
 
     fn parses(input: &str, output: super::Noun) {
@@ -892,12 +895,14 @@ mod test {
                  "55");
     }
 
-    #[test]
-    fn test_stack() {
+    #[bench]
+    fn test_stack(b: &mut Bencher) {
         // Subtraction. Tests tail call elimination, will trash stack if it
         // doesn't work.
-        produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
-                 "9.999");
+        b.iter(|| {
+            produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
+                     "9.999")
+        })
     }
 
     #[test]
