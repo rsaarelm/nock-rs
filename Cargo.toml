@@ -8,7 +8,7 @@ repository = "https://github.com/rsaarelm/nock-rs"
 license = "MIT"
 
 [dependencies]
-num = "*"
+num = "0.1"
 
 [[example]]
 name = "repl"
