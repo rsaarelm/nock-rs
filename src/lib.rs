@@ -331,8 +331,8 @@ fn parse_cord(mut atom: BigUint) -> Option<String> {
 /// Rust n![1, 2, 3] corresponds to Nock [1 2 3]
 #[macro_export]
 macro_rules! n {
-    [$x:expr, $y:expr] => { ::nock::Noun::Cell(::std::rc::Rc::new($x.into()), ::std::rc::Rc::new($y.into())) };
-    [$x:expr, $y:expr, $($ys:expr),+] => { ::nock::Noun::Cell(::std::rc::Rc::new($x.into()), ::std::rc::Rc::new(n![$y, $($ys),+])) };
+    [$x:expr, $y:expr] => { $crate::Noun::Cell(::std::rc::Rc::new($x.into()), ::std::rc::Rc::new($y.into())) };
+    [$x:expr, $y:expr, $($ys:expr),+] => { $crate::Noun::Cell(::std::rc::Rc::new($x.into()), ::std::rc::Rc::new(n![$y, $($ys),+])) };
 }
 
 use Noun::*;
@@ -542,11 +542,6 @@ fn big_axis(x: BigUint, noun: Rc<Noun>) -> NockResult {
     }
 }
 
-
-// Re-export hack for testing macros.
-mod nock {
-    pub use Noun;
-}
 
 #[cfg(test)]
 mod tests {
