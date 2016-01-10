@@ -55,7 +55,6 @@ extern crate num;
 use std::fmt;
 use std::iter;
 use std::str;
-use std::hash::{Hash, Hasher, SipHasher};
 use std::rc::Rc;
 use num::bigint::BigUint;
 use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
@@ -68,7 +67,7 @@ use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
 /// let noun: nock::Noun = "[19 4 0 1]".parse().unwrap();
 /// assert_eq!(format!("{}", noun.nock().unwrap()), "20");
 /// ```
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Noun {
     /// A single positive integer
     Atom(u32),
@@ -129,183 +128,6 @@ impl Noun {
     pub fn from_biguint(num: BigUint) -> Noun {
         num.to_u32().map_or(BigAtom(num), |x| Atom(x))
     }
-
-    /// Return the number of atoms in the noun.
-    ///
-    /// May end up running for a very long time with nontrivial nouns.
-    pub fn size(&self) -> u64 {
-        match self {
-            &Cell(ref a, ref b) => a.size() + b.size(),
-            _ => 1,
-        }
-    }
-
-    /// Return whether the noun has more than the given number of atoms.
-    ///
-    /// Noun can be extremely large, so asking for an explicit atom count can
-    /// cause the function to run for an extremely long time. Asking about a
-    /// modest bound to detect cells that are too big to eg. try writing to
-    /// stdout will terminate in a reasonable time.
-    pub fn is_larger_than(&self, size: u64) -> bool {
-        if size == 0 {
-            return true;
-        }
-        match self {
-            &Cell(ref a, ref b) => {
-                if a.is_larger_than(size - 1) {
-                    return true;
-                }
-                if b.is_larger_than(size - 1) {
-                    return true;
-                }
-                a.size() + b.size() > size
-            }
-            _ => false,
-        }
-    }
-
-    /// Return whether the noun represents a list with more than the given
-    /// number of elements.
-    pub fn is_wider_than(&self, size: u64) -> bool {
-        if size == 0 {
-            return true;
-        }
-        match self {
-            &Cell(_, ref b) => b.is_wider_than(size - 1),
-            _ => false,
-        }
-    }
-
-    /// A hash function that does not recurse into the noun beyond the limit.
-    ///
-    /// Useful for hashing potentially extremely large nouns.
-    fn bounded_hash<H>(&self, state: &mut H, limit: usize)
-        where H: Hasher
-    {
-        match self {
-            &Atom(ref x) => x.hash(state),
-            &BigAtom(ref x) => x.hash(state),
-            &Cell(ref a, ref b) => {
-                if limit > 0 {
-                    a.bounded_hash(state, limit - 1);
-                    b.bounded_hash(state, limit - 1);
-                }
-            }
-        }
-    }
-
-    /// Generate a pseudorandom identifier for this noun.
-    pub fn id(&self) -> String {
-        // TODO: Figure out the urbit/hoon version for this, which does the
-        // "106.umz" style abbrevs with the number being the arm count in the
-        // cell.
-        static VS: [char; 5] = ['a', 'e', 'i', 'o', 'u'];
-        static CS: [char; 14] = ['b', 'd', 'f', 'g', 'j', 'k', 'm', 'n', 'p', 'r', 's', 't', 'v',
-                                 'z'];
-
-        let mut s = SipHasher::new();
-        self.hash(&mut s);
-        let hash = s.finish();
-        let (hash, c1) = (hash / CS.len() as u64, hash % CS.len() as u64);
-        let (hash, v) = (hash / VS.len() as u64, hash % VS.len() as u64);
-        let (_, c2) = (hash / CS.len() as u64, hash % CS.len() as u64);
-        [CS[c1 as usize], VS[v as usize], CS[c2 as usize]].iter().map(|&x| x).collect()
-    }
-
-    fn write(&self,
-             f: &mut fmt::Formatter,
-             depth: u64,
-             use_symbols: bool,
-             show_cord: bool)
-             -> fmt::Result {
-        let multiline = !use_symbols && self.is_larger_than(16);
-
-        let is_tiny = !self.is_larger_than(4);
-
-        if use_symbols && !is_tiny && depth > 1 {
-            return write!(f, "{}", self.id());
-        }
-
-        let sep = if multiline && !use_symbols {
-            "\n"
-        } else {
-            " "
-        };
-        match self {
-            &Atom(ref n) => return show_atom(f, &BigUint::from_u32(*n).unwrap(), show_cord),
-            &BigAtom(ref n) => return show_atom(f, &n, show_cord),
-            &Cell(ref a, ref b) => {
-                if use_symbols && !is_tiny {
-                    try!(write!(f, "{}:", self.id()));
-                }
-
-                try!(write!(f, "["));
-                try!(a.write(f, depth + 1, use_symbols, show_cord));
-                try!(write!(f, "{}", sep));
-                // List pretty-printer.
-                let mut cur = b;
-
-                let mut list_pos = 0;
-                loop {
-                    if multiline {
-                        use std::cmp::min;
-                        for _ in 0..(min(depth, 64)) {
-                            try!(write!(f, " "));
-                        }
-                    }
-                    match **cur {
-                        Cell(ref a, ref b) => {
-                            if use_symbols && list_pos + depth > 3 {
-                                return write!(f, "{}]", cur.id());
-                            } else {
-                                try!(a.write(f, depth + 1, use_symbols, show_cord));
-                                try!(write!(f, "{}", sep));
-                                cur = &b;
-                            }
-                        }
-                        Atom(ref n) => {
-                            try!(show_atom(f, &BigUint::from_u32(*n).unwrap(), show_cord));
-                            return write!(f, "]");
-                        }
-                        BigAtom(ref n) => {
-                            try!(show_atom(f, &n, show_cord));
-                            return write!(f, "]");
-                        }
-                    }
-
-                    list_pos += 1;
-                }
-            }
-        }
-
-        fn show_atom(f: &mut fmt::Formatter, item: &BigUint, show_cord: bool) -> fmt::Result {
-            // 0x2121 == '!!', smallest number that produces a non-whitespace
-            // multi-character printable ASCII string.
-            if show_cord && item >= &BigUint::from_u32(0x2121).unwrap() {
-                if let Some(cord) = parse_cord(item.clone()) {
-                    return write!(f, "%{}", cord);
-                }
-            }
-
-            let s = format!("{}", item);
-            let phase = s.len() % 3;
-            for (i, c) in s.chars().enumerate() {
-                if i > 0 && i % 3 == phase {
-                    try!(write!(f, "."));
-                }
-                try!(write!(f, "{}", c));
-            }
-            Ok(())
-        }
-    }
-}
-
-impl Hash for Noun {
-    fn hash<H>(&self, state: &mut H)
-        where H: Hasher
-    {
-        self.bounded_hash(state, 32);
-    }
 }
 
 impl Into<Noun> for u32 {
@@ -338,22 +160,49 @@ impl iter::FromIterator<Noun> for Noun {
 
 impl fmt::Display for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        return self.write(f, 0, false, false);
+        match self {
+            &Atom(ref n) => return dot_separators(f, &n),
+            &BigAtom(ref n) => return dot_separators(f, &n),
+            &Cell(ref a, ref b) => {
+                try!(write!(f, "[{} ", a));
+                // List pretty-printer.
+                let mut cur = b;
+                loop {
+                    match **cur {
+                        Cell(ref a, ref b) => {
+                            try!(write!(f, "{} ", a));
+                            cur = &b;
+                        }
+                        Atom(ref n) => {
+                            try!(dot_separators(f, &n));
+                            return write!(f, "]");
+                        }
+                        BigAtom(ref n) => {
+                            try!(dot_separators(f, &n));
+                            return write!(f, "]");
+                        }
+                    }
+                }
+            }
+        }
+
+        fn dot_separators<T: fmt::Display>(f: &mut fmt::Formatter, item: &T) -> fmt::Result {
+            let s = format!("{}", item);
+            let phase = s.len() % 3;
+            for (i, c) in s.chars().enumerate() {
+                if i > 0 && i % 3 == phase {
+                    try!(write!(f, "."));
+                }
+                try!(write!(f, "{}", c));
+            }
+            Ok(())
+        }
     }
 }
 
-// Let's abuse a custom formatter to do a limited length version of a noun
-// when you use {:e}.
-impl fmt::LowerExp for Noun {
+impl fmt::Debug for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        return self.write(f, 0, true, false);
-    }
-}
-
-// And {:x} for trying to replace suitable-looking atoms with strings.
-impl fmt::LowerHex for Noun {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        return self.write(f, 0, false, true);
+        write!(f, "{}", self)
     }
 }
 
