@@ -111,14 +111,6 @@ impl Noun {
         None
     }
 
-    /// Try to represent a Nock atom as a string.
-    ///
-    /// The atom is interpreted as a string of UTF-8 bytes in least significant
-    /// byte first order.
-    pub fn to_cord(&self) -> Option<String> {
-        self.to_bytes().and_then(|b| String::from_utf8(b).ok())
-    }
-
     /// If the noun is an atom, build a byte slice representation of it.
     pub fn to_bytes(&self) -> Option<Vec<u8>> {
         let mut ret = Vec::new();
@@ -755,23 +747,27 @@ mod tests {
         })
     }
 
+    fn to_cord(n: Noun) -> Option<String> {
+        n.to_bytes().and_then(|b| String::from_utf8(b).ok())
+    }
+
     #[test]
     fn test_cord() {
-        assert_eq!("0".parse::<Noun>().unwrap().to_cord(), Some("".to_string()));
-        assert_eq!("190".parse::<Noun>().unwrap().to_cord(), None);
-        assert_eq!("7303014".parse::<Noun>().unwrap().to_cord(),
+        assert_eq!(to_cord("0".parse::<Noun>().unwrap()), Some("".to_string()));
+        assert_eq!(to_cord("190".parse::<Noun>().unwrap()), None);
+        assert_eq!(to_cord("7303014".parse::<Noun>().unwrap()),
                    Some("foo".to_string()));
     }
 
     #[test]
     fn test_from_bytes() {
         assert_eq!(Noun::from_bytes("".as_bytes()), Noun::Atom(0));
-        assert_eq!(Noun::from_bytes("a".as_bytes()).to_cord(),
+        assert_eq!(to_cord(Noun::from_bytes("a".as_bytes())),
                    Some("a".to_string()));
-        assert_eq!(Noun::from_bytes("nock".as_bytes()).to_cord(),
+        assert_eq!(to_cord(Noun::from_bytes("nock".as_bytes())),
                    Some("nock".to_string()));
         assert_eq!(Noun::from_bytes("nock".as_bytes()), Noun::Atom(1801678702));
-        assert_eq!(Noun::from_bytes("antidisestablishmentarianism".as_bytes()).to_cord(),
+        assert_eq!(to_cord(Noun::from_bytes("antidisestablishmentarianism".as_bytes())),
                    Some("antidisestablishmentarianism".to_string()));
     }
 }

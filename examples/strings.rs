@@ -24,7 +24,7 @@ fn strings(noun: &nock::Noun) {
         }
         &nock::Noun::Atom(a) if a < 0x2121 => {}
         _ => {
-            if let Some(s) = noun.to_cord() {
+            if let Some(s) = noun.to_bytes().and_then(|b| String::from_utf8(b).ok()) {
                 println!("{}", s);
             }
         }
