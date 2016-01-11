@@ -57,6 +57,7 @@ use std::iter;
 use std::str;
 use std::default;
 use std::rc::Rc;
+use std::hash;
 use num::bigint::BigUint;
 use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
 use num::integer::Integer;
@@ -136,6 +137,44 @@ impl Noun {
     pub fn from_biguint(num: BigUint) -> Noun {
         num.to_u32().map_or(BigAtom(num), |x| Atom(x))
     }
+
+    /// Run a memoizing fold over the noun
+    pub fn fold<'a, F, T: Clone>(&'a self, mut f: F) -> T
+        where F: FnMut(FoldState<'a, T>) -> T {
+        use std::collections::HashMap;
+        fn g<'a, F, T: Clone>(noun: &'a Rc<Noun>, memo: &mut HashMap<usize, T>, f: &mut F) -> T
+            where F: FnMut(FoldState<'a, T>) -> T {
+            let key = &*noun as *const _ as usize;
+            if memo.contains_key(&key) {
+                memo.get(&key).unwrap().clone()
+            } else {
+                let ret = h(noun, memo, f);
+                memo.insert(key, ret.clone());
+                ret
+            }
+        }
+
+        fn h<'a, F, T: Clone>(noun: &'a Noun, memo: &mut HashMap<usize, T>, f: &mut F) -> T
+            where F: FnMut(FoldState<'a, T>) -> T {
+            match noun {
+                &Atom(ref a) => f(FoldState::Atom(*a)),
+                &BigAtom(ref a) => f(FoldState::BigAtom(a)),
+                &Cell(ref p, ref q) => {
+                    let p = g(p, memo, f);
+                    let q = g(q, memo, f);
+                    f(FoldState::Cell(p, q))
+                }
+            }
+        }
+
+        h(self, &mut HashMap::new(), &mut f)
+    }
+}
+
+pub enum FoldState<'a, T> {
+    Atom(u32),
+    BigAtom(&'a BigUint),
+    Cell(T, T),
 }
 
 impl default::Default for Noun {
@@ -217,6 +256,29 @@ impl fmt::Display for Noun {
 impl fmt::Debug for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self)
+    }
+}
+
+impl hash::Hash for Noun {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        fn f<H: hash::Hasher>(state: &mut H, x: FoldState<u64>) -> u64 {
+            match x {
+                FoldState::Atom(a) => {
+                    a.hash(state);
+                    state.finish()
+                }
+                FoldState::BigAtom(a) => {
+                    a.hash(state);
+                    state.finish()
+                }
+                FoldState::Cell(p, q) => {
+                    p.hash(state);
+                    q.hash(state);
+                    state.finish()
+                }
+            }
+        }
+        self.fold(|x| f(state, x)).hash(state);
     }
 }
 
@@ -564,6 +626,7 @@ fn big_axis(x: BigUint, noun: Rc<Noun>) -> NockResult {
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
+    use std::hash;
     use num::bigint::BigUint;
     use num::traits::{FromPrimitive, One};
     use test::Bencher;
@@ -790,5 +853,18 @@ mod tests {
         assert_eq!(Noun::from_bytes("nock".as_bytes()), Noun::Atom(1801678702));
         assert_eq!(to_cord(Noun::from_bytes("antidisestablishmentarianism".as_bytes())),
                    Some("antidisestablishmentarianism".to_string()));
+    }
+
+    fn hash<T: hash::Hash>(t: &T) -> u64 {
+        use std::hash::Hasher;
+        let mut s = hash::SipHasher::new();
+        t.hash(&mut s);
+        s.finish()
+    }
+
+    #[test]
+    fn test_fold() {
+        assert_eq!(hash(&n![1, 2, 3]), hash(&n![1, 2, 3]));
+        assert!(hash(&n![1, 2, 3]) != hash(&n![1, 2]));
     }
 }
