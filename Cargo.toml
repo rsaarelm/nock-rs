@@ -9,3 +9,7 @@ license = "MIT"
 
 [dependencies]
 num = "0.1"
+
+[[example]]
+name = "repl"
+path = "examples/repl.rs"
