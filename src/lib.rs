@@ -55,6 +55,7 @@ extern crate num;
 use std::fmt;
 use std::iter;
 use std::str;
+use std::default;
 use std::rc::Rc;
 use num::bigint::BigUint;
 use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
@@ -134,6 +135,12 @@ impl Noun {
     /// BigUint.
     pub fn from_biguint(num: BigUint) -> Noun {
         num.to_u32().map_or(BigAtom(num), |x| Atom(x))
+    }
+}
+
+impl default::Default for Noun {
+    fn default() -> Noun {
+        Noun::Atom(0)
     }
 }
 
