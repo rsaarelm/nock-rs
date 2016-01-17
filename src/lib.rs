@@ -140,10 +140,12 @@ impl Noun {
 
     /// Run a memoizing fold over the noun
     pub fn fold<'a, F, T: Clone>(&'a self, mut f: F) -> T
-        where F: FnMut(FoldState<'a, T>) -> T {
+        where F: FnMut(FoldState<'a, T>) -> T
+    {
         use std::collections::HashMap;
         fn g<'a, F, T: Clone>(noun: &'a Rc<Noun>, memo: &mut HashMap<usize, T>, f: &mut F) -> T
-            where F: FnMut(FoldState<'a, T>) -> T {
+            where F: FnMut(FoldState<'a, T>) -> T
+        {
             let key = &*noun as *const _ as usize;
             if memo.contains_key(&key) {
                 memo.get(&key).unwrap().clone()
@@ -155,7 +157,8 @@ impl Noun {
         }
 
         fn h<'a, F, T: Clone>(noun: &'a Noun, memo: &mut HashMap<usize, T>, f: &mut F) -> T
-            where F: FnMut(FoldState<'a, T>) -> T {
+            where F: FnMut(FoldState<'a, T>) -> T
+        {
             match noun {
                 &Atom(ref a) => f(FoldState::Atom(*a)),
                 &BigAtom(ref a) => f(FoldState::BigAtom(a)),
