@@ -325,6 +325,20 @@ impl str::FromStr for Noun {
     }
 }
 
+
+/// Trait for Rust types that have a representation as a Nock noun.
+///
+/// The function from values of a specific to nouns is usually injective. All
+/// distinct values map to distinct nouns, but not all nouns necessarily map
+/// back to valid values.
+pub trait Nounable: Sized {
+    /// Convert an instance of a type to noun.
+    fn to_noun(&self) -> Noun;
+
+    /// Try to convert a noun to an instance of the type.
+    fn from_noun(noun: Noun) -> Option<Self>;
+}
+
 /// Macro for noun literals.
 ///
 /// Rust n![1, 2, 3] corresponds to Nock [1 2 3]
