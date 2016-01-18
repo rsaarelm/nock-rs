@@ -186,18 +186,6 @@ impl default::Default for Noun {
     }
 }
 
-impl Into<Noun> for u32 {
-    fn into(self) -> Noun {
-        Noun::Atom(self)
-    }
-}
-
-impl Into<Noun> for BigUint {
-    fn into(self) -> Noun {
-        Noun::from_biguint(self)
-    }
-}
-
 impl iter::FromIterator<Noun> for Noun {
     fn from_iter<T>(iterator: T) -> Self
         where T: IntoIterator<Item = Noun>
@@ -391,18 +379,65 @@ impl str::FromStr for Noun {
 }
 
 
-/// Trait for Rust types that have a representation as a Nock noun.
-///
-/// The function from values of a specific to nouns is usually injective. All
-/// distinct values map to distinct nouns, but not all nouns necessarily map
-/// back to valid values.
-pub trait Nounable: Sized {
-    /// Convert an instance of a type to noun.
-    fn to_noun(&self) -> Noun;
+/// A trait for types that can be instantiated from a Nock noun.
+pub trait FromNoun: Sized {
+    /// The associated error.
+    type Err;
 
     /// Try to convert a noun to an instance of the type.
-    fn from_noun(noun: Noun) -> Option<Self>;
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err>;
 }
+
+impl FromNoun for u32 {
+    type Err = ();
+
+    fn from_noun(n: &Noun) -> Result<u32, ()> {
+        match n {
+            &Atom(ref n) => Ok(*n),
+            _ => Err(())
+        }
+    }
+}
+
+impl Into<Noun> for u32 {
+    fn into(self) -> Noun {
+        Noun::Atom(self)
+    }
+}
+
+impl FromNoun for BigUint {
+    type Err = ();
+
+    fn from_noun(n: &Noun) -> Result<BigUint, ()> {
+        match n {
+            &Atom(ref n) => Ok(BigUint::from_u32(*n).unwrap()),
+            &BigAtom(ref n) => Ok(n.clone()),
+            _ => Err(())
+        }
+    }
+}
+
+impl Into<Noun> for BigUint {
+    fn into(self) -> Noun {
+        Noun::from_biguint(self)
+    }
+}
+
+// TODO: FromNoun impls for
+// - primitive unsigned integer types
+// - BigUint
+// - Signed integer types (use the Hoon encoding)
+// - (FromNoun, FromNoun) as [a b]
+// - FromIterator<FromNoun> (~-terminated cell sequence)
+// - The above two should get us HashMap and Vec conversion for free...
+// - Strings are tricky, as we can get them from either a cord (atom as &[u8])
+//   or a rope (~-terminated list of char atoms). Hm... Maybe prefer cord as
+//   the "natural" conversion and have a separate function for ropes.
+// - &[u8] is the base case for Strings, and also tricky since there are &[u8]
+//   values which can not be represented in cord style (ones with heading zero
+//   bytes). Can we do into-from for them with good conscience if the
+//   roundtrip won't preserve some values?
+// TODO: Implement From<X> for Noun for all X in list above.
 
 /// Macro for noun literals.
 ///
