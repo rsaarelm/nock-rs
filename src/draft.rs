@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::rc::Rc;
+use std::hash;
 use digit_slice::DigitSlice;
 
 pub enum Shape<'a, N: 'a + Noun> {
@@ -20,50 +22,39 @@ pub trait Noun: Sized+Clone {
     fn addr(&self) -> usize;
 
     /// Run a memoizing fold over the noun
-    fn fold<'a, F, G, T: Clone>(&'a self, leaf: &mut F, branch: &mut G) -> T
+    fn fold<'a, F, G, T: Clone>(&'a self, mut leaf: F, mut branch: G) -> T
         where F: FnMut(&[u8]) -> T,
               G: FnMut(&T, &T) -> T
     {
-        /*
-        use std::collections::HashMap;
-        fn g<'a, F, T: Clone>(noun: &'a Self, memo: &mut HashMap<usize, T>, leaf: &mut F, branch: &mut G) -> T
-            where F: FnMut(&[u8]) -> T,
-                  G: FnMut(&T, &T) -> T
+        fn h<'a, S, F, G, T>(noun: &'a S,
+                             memo: &mut HashMap<usize, T>,
+                             leaf: &mut F,
+                             branch: &mut G)
+                             -> T
+            where S: Noun,
+                  F: FnMut(&[u8]) -> T,
+                  G: FnMut(&T, &T) -> T,
+                  T: Clone
         {
             let key = noun.addr();
+
             if memo.contains_key(&key) {
                 memo.get(&key).unwrap().clone()
             } else {
-                let ret = h(noun, memo, f);
+                let ret = match noun.get() {
+                    Shape::Atom(x) => leaf(x),
+                    Shape::Cell(ref a, ref b) => {
+                        let a = h(*a, memo, leaf, branch);
+                        let b = h(*b, memo, leaf, branch);
+                        branch(&a, &b)
+                    }
+                };
                 memo.insert(key, ret.clone());
                 ret
             }
         }
 
-        fn h<'a, F, T: Clone>(noun: &'a Noun, memo: &mut HashMap<usize, T>, f: &mut F) -> T
-            where F: FnMut(FoldState<'a, T>) -> T
-        {
-            match noun {
-                &Atom(ref a) => f(FoldState::Atom(*a)),
-                &BigAtom(ref a) => f(FoldState::BigAtom(a)),
-                &Cell(ref p, ref q) => {
-                    let p = g(p, memo, f);
-                    let q = g(q, memo, f);
-                    f(FoldState::Cell(p, q))
-                }
-            }
-        }
-
-        h(self, &mut HashMap::new(), &mut f)
-        */
-        match self.get() {
-            Shape::Atom(x) => leaf(x),
-            Shape::Cell(ref a, ref b) => {
-                let a = a.fold(leaf, branch);
-                let b = b.fold(leaf, branch);
-                branch(&a, &b)
-            }
-        }
+        h(self, &mut HashMap::new(), &mut leaf, &mut branch)
     }
 }
 
