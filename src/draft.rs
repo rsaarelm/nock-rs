@@ -3,36 +3,51 @@ use std::rc::Rc;
 use std::hash;
 use digit_slice::DigitSlice;
 
-pub enum Shape<'a, N: 'a + Noun> {
-    // A natural number represented as a little-endian sequence of 8-bit
-    // digits.
+pub enum Shape<'a> {
+    /// A natural number represented as a little-endian sequence of 8-bit
+    /// digits.
     Atom(&'a [u8]),
-    // An ordered pair of nouns.
-    Cell(&'a N, &'a N),
+    /// An ordered pair of nouns.
+    Cell(&'a Noun, &'a Noun),
 }
 
 /// A Nock noun, the basic unit of representation.
 ///
 /// A noun is an atom or a cell. An atom is any natural number. A cell is any
 /// ordered pair of nouns.
-pub trait Noun: Sized+Clone {
-    fn get<'a>(&'a self) -> Shape<'a, Self>;
+#[derive(Clone, PartialEq, Eq)]
+pub struct Noun(Inner);
+
+#[derive(Clone, PartialEq, Eq)]
+enum Inner {
+    Atom(Rc<Vec<u8>>),
+    Cell(Rc<Noun>, Rc<Noun>),
+}
+
+impl Noun {
+    fn get<'a>(&'a self) -> Shape<'a> {
+        match self.0 {
+            Inner::Atom(ref v) => Shape::Atom(&v),
+            Inner::Cell(ref a, ref b) => Shape::Cell(&*a, &*b),
+        }
+    }
 
     /// Memory address or other unique identifier for the noun.
-    fn addr(&self) -> usize;
+    fn addr(&self) -> usize {
+        &*self as *const _ as usize
+    }
 
     /// Run a memoizing fold over the noun
     fn fold<'a, F, G, T: Clone>(&'a self, mut leaf: F, mut branch: G) -> T
         where F: FnMut(&[u8]) -> T,
               G: FnMut(&T, &T) -> T
     {
-        fn h<'a, S, F, G, T>(noun: &'a S,
-                             memo: &mut HashMap<usize, T>,
-                             leaf: &mut F,
-                             branch: &mut G)
-                             -> T
-            where S: Noun,
-                  F: FnMut(&[u8]) -> T,
+        fn h<'a, F, G, T>(noun: &'a Noun,
+                          memo: &mut HashMap<usize, T>,
+                          leaf: &mut F,
+                          branch: &mut G)
+                          -> T
+            where F: FnMut(&[u8]) -> T,
                   G: FnMut(&T, &T) -> T,
                   T: Clone
         {
@@ -56,80 +71,41 @@ pub trait Noun: Sized+Clone {
 
         h(self, &mut HashMap::new(), &mut leaf, &mut branch)
     }
-}
-
-pub trait Context: Sized {
-    type Noun: Noun;
 
     /// Build a new atom noun from a little-endian 8-bit digit sequence.
-    fn atom(&mut self, digits: &[u8]) -> Self::Noun;
+    fn atom(digits: &[u8]) -> Noun {
+        Noun(Inner::Atom(Rc::new(digits.to_vec())))
+    }
 
     /// Build a new cell noun from two existing nouns.
-    fn cell(&mut self, a: Self::Noun, b: Self::Noun) -> Self::Noun;
+    fn cell(&mut self, a: &Noun, b: &Noun) -> Noun {
+        Noun(Inner::Cell(Rc::new(a.clone()), Rc::new(b.clone())))
+    }
 
-    fn noun<T: ToNoun>(&mut self, item: T) -> Self::Noun {
-        item.to_noun(self)
+    fn noun<T: ToNoun>(item: T) -> Noun {
+        item.to_noun()
     }
 }
 
 /// Trait for types that can convert themselves to a noun.
 pub trait ToNoun {
-    fn to_noun<C: Context>(self, &mut C) -> C::Noun;
+    fn to_noun(&self) -> Noun;
 }
 
 impl<T> ToNoun for T where T: DigitSlice
 {
-    fn to_noun<C: Context>(self, ctx: &mut C) -> C::Noun {
-        ctx.atom(self.as_digits())
-    }
-}
-
-#[derive(Clone, PartialEq, Eq)]
-enum HeapNounInner {
-    Atom(Vec<u8>),
-    Cell(Rc<HeapNoun>, Rc<HeapNoun>),
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub struct HeapNoun(HeapNounInner);
-
-impl Noun for HeapNoun {
-    fn get<'a>(&'a self) -> Shape<'a, Self> {
-        match self.0 {
-            HeapNounInner::Atom(ref v) => Shape::Atom(&v),
-            HeapNounInner::Cell(ref a, ref b) => Shape::Cell(&*a, &*b),
-        }
-    }
-
-    fn addr(&self) -> usize {
-        &*self as *const _ as usize
-    }
-}
-
-#[derive(Default)]
-pub struct Heap;
-
-impl Context for Heap {
-    type Noun = HeapNoun;
-
-    /// Build a new atom noun.
-    fn atom(&mut self, digits: &[u8]) -> Self::Noun {
-        HeapNoun(HeapNounInner::Atom(digits.to_vec()))
-    }
-
-    /// Build a new cell noun from two existing nouns.
-    fn cell(&mut self, a: Self::Noun, b: Self::Noun) -> Self::Noun {
-        HeapNoun(HeapNounInner::Cell(Rc::new(a), Rc::new(b)))
+    fn to_noun(&self) -> Noun {
+        Noun::atom(self.as_digits())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Context, Heap};
+    use super::Noun;
 
     #[test]
     fn scratch() {
-        let x = Heap.noun(123u32);
-        assert!(x == Heap.noun(123u8));
+        let x = Noun::noun(123u32);
+        assert!(x == Noun::noun(123u8));
     }
 }
