@@ -62,6 +62,8 @@ use num::bigint::BigUint;
 use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
 use num::integer::Integer;
 
+mod draft;
+
 /// A Nock noun, the basic unit of representation.
 ///
 /// A noun is an atom or a cell. An atom is any natural number. A cell is any

@@ -1,3 +1,4 @@
+use std::default::Default;
 use num::bigint::BigUint;
 use num::traits::{FromPrimitive, Zero};
 
@@ -20,10 +21,10 @@ pub trait Builder: Sized {
     type Noun: Noun<Builder=Self>;
 
     /// Build a new atom noun.
-    fn atom<T: Into<BigUint>>(&mut self, val: T) -> Self::Noun;
+    fn atom<T: Into<BigUint>>(&mut self, T) -> Self::Noun;
 
     /// Build a new cell noun from two existing nouns.
-    fn cell(&mut self, a: Self::Noun, b: Self::Noun) -> Self::Noun;
+    fn cell(&mut self, Self::Noun, Self::Noun) -> Self::Noun;
 
     /// Build an atom equivalent to a list of bytes.
     ///
@@ -44,3 +45,21 @@ pub trait Builder: Sized {
     }
 }
 
+pub trait ToNoun {
+    fn to_noun<N, B>(self, &mut B) -> N
+        where N: Noun<Builder = B>,
+              B: Builder<Noun = N>;
+}
+
+// By convention, default-constructible Builders are instantiated at will so
+// that we can use standalone construction methods.
+impl<N, B, T> From<T> for N
+    where T: ToNoun,
+          B: Builder<Noun = N> + Default,
+          N: Noun<Builder = B>
+{
+    fn from(val: T) -> N {
+        let mut builder = Default::default();
+        val.to_noun(&mut builder)
+    }
+}
