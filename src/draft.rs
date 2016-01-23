@@ -1,6 +1,5 @@
-use std::default::Default;
 use std::rc::Rc;
-use digit_slice::{DigitSlice};
+use digit_slice::DigitSlice;
 
 pub enum Shape<'a, N: 'a + Noun> {
     // A natural number represented as a little-endian sequence of 8-bit
@@ -14,8 +13,58 @@ pub enum Shape<'a, N: 'a + Noun> {
 ///
 /// A noun is an atom or a cell. An atom is any natural number. A cell is any
 /// ordered pair of nouns.
-pub trait Noun: Sized {
+pub trait Noun: Sized+Clone {
     fn get<'a>(&'a self) -> Shape<'a, Self>;
+
+    /// Memory address or other unique identifier for the noun.
+    fn addr(&self) -> usize;
+
+    /// Run a memoizing fold over the noun
+    fn fold<'a, F, G, T: Clone>(&'a self, leaf: &mut F, branch: &mut G) -> T
+        where F: FnMut(&[u8]) -> T,
+              G: FnMut(&T, &T) -> T
+    {
+        /*
+        use std::collections::HashMap;
+        fn g<'a, F, T: Clone>(noun: &'a Self, memo: &mut HashMap<usize, T>, leaf: &mut F, branch: &mut G) -> T
+            where F: FnMut(&[u8]) -> T,
+                  G: FnMut(&T, &T) -> T
+        {
+            let key = noun.addr();
+            if memo.contains_key(&key) {
+                memo.get(&key).unwrap().clone()
+            } else {
+                let ret = h(noun, memo, f);
+                memo.insert(key, ret.clone());
+                ret
+            }
+        }
+
+        fn h<'a, F, T: Clone>(noun: &'a Noun, memo: &mut HashMap<usize, T>, f: &mut F) -> T
+            where F: FnMut(FoldState<'a, T>) -> T
+        {
+            match noun {
+                &Atom(ref a) => f(FoldState::Atom(*a)),
+                &BigAtom(ref a) => f(FoldState::BigAtom(a)),
+                &Cell(ref p, ref q) => {
+                    let p = g(p, memo, f);
+                    let q = g(q, memo, f);
+                    f(FoldState::Cell(p, q))
+                }
+            }
+        }
+
+        h(self, &mut HashMap::new(), &mut f)
+        */
+        match self.get() {
+            Shape::Atom(x) => leaf(x),
+            Shape::Cell(ref a, ref b) => {
+                let a = a.fold(leaf, branch);
+                let b = b.fold(leaf, branch);
+                branch(&a, &b)
+            }
+        }
+    }
 }
 
 pub trait Context: Sized {
@@ -26,6 +75,10 @@ pub trait Context: Sized {
 
     /// Build a new cell noun from two existing nouns.
     fn cell(&mut self, a: Self::Noun, b: Self::Noun) -> Self::Noun;
+
+    fn noun<T: ToNoun>(&mut self, item: T) -> Self::Noun {
+        item.to_noun(self)
+    }
 }
 
 /// Trait for types that can convert themselves to a noun.
@@ -33,28 +86,10 @@ pub trait ToNoun {
     fn to_noun<C: Context>(self, &mut C) -> C::Noun;
 }
 
-impl<T> ToNoun for T where T: DigitSlice {
+impl<T> ToNoun for T where T: DigitSlice
+{
     fn to_noun<C: Context>(self, ctx: &mut C) -> C::Noun {
         ctx.atom(self.as_digits())
-    }
-}
-
-/// Trait for constructing nouns without a Builder instance for Builder types
-/// that don't need a common instance for constructing nouns.
-///
-/// By convention if a Builder implements Default, it's assumed that Builder
-/// state doesn't matter and new Builders can be constructed at will.
-pub trait Build<T> : Context {
-    fn noun(T) -> Self::Noun;
-}
-
-impl<C, T> Build<T> for C
-    where T: ToNoun,
-          C: Context + Default
-{
-    fn noun(val: T) -> C::Noun {
-        let mut ctx: C = Default::default();
-        val.to_noun(&mut ctx)
     }
 }
 
@@ -73,6 +108,10 @@ impl Noun for HeapNoun {
             HeapNounInner::Atom(ref v) => Shape::Atom(&v),
             HeapNounInner::Cell(ref a, ref b) => Shape::Cell(&*a, &*b),
         }
+    }
+
+    fn addr(&self) -> usize {
+        &*self as *const _ as usize
     }
 }
 
@@ -95,11 +134,11 @@ impl Context for Heap {
 
 #[cfg(test)]
 mod tests {
-    use super::{Heap, Build};
+    use super::{Context, Heap};
 
     #[test]
     fn scratch() {
-        let x = Heap::noun(123u32);
-        assert!(x == Heap::noun(123u8));
+        let x = Heap.noun(123u32);
+        assert!(x == Heap.noun(123u8));
     }
 }
