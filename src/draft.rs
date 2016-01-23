@@ -45,21 +45,24 @@ pub trait Builder: Sized {
     }
 }
 
-pub trait ToNoun {
-    fn to_noun<N, B>(self, &mut B) -> N
+pub trait Buildable {
+    fn build<N, B>(self, &mut B) -> N
         where N: Noun<Builder = B>,
               B: Builder<Noun = N>;
 }
 
+pub trait IntoNoun<B: Builder> {
+    fn into(self) -> B::Noun;
+}
+
 // By convention, default-constructible Builders are instantiated at will so
 // that we can use standalone construction methods.
-impl<N, B, T> From<T> for N
-    where T: ToNoun,
-          B: Builder<Noun = N> + Default,
-          N: Noun<Builder = B>
+impl<B, T> IntoNoun<B> for T
+    where T: Buildable,
+          B: Builder + Default
 {
-    fn from(val: T) -> N {
+    fn into(self) -> B::Noun {
         let mut builder = Default::default();
-        val.to_noun(&mut builder)
+        self.build(&mut builder)
     }
 }
