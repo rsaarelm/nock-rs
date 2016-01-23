@@ -68,10 +68,9 @@ macro_rules! primitive_impl {
         impl FromDigits for $t {
             #[inline]
             fn from_digits(digits: &[u8]) -> Option<$t> {
-                let bytes = mem::size_of::<$t>();
-                if digits.len() > bytes { return None; }
+                if digits.len() > mem::size_of::<$t>() { return None; }
                 let mut ret = 0 as $t;
-                for i in 0..bytes {
+                for i in 0..digits.len() {
                     ret |= digits[i] as $t << (i * 8);
                 }
                 Some(ret)
@@ -110,5 +109,9 @@ mod tests {
         assert_eq!(u8::from_digits(&[0x44]), Some(0x44));
         assert_eq!(u8::from_digits(&[0x44, 0x33]), None);
         assert_eq!(u32::from_digits(&[0x44, 0x33]), Some(0x3344));
+
+        assert_eq!(BigUint::from_digits(&[0x99, 0x88, 0x77, 0x66, 0x55,
+                                          0x44, 0x33, 0x22, 0x11]),
+                   BigUint::parse_bytes(b"112233445566778899", 16));
     }
 }

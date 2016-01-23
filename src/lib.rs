@@ -63,6 +63,7 @@ use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
 use num::integer::Integer;
 
 mod draft;
+mod digit_slice;
 
 /// A Nock noun, the basic unit of representation.
 ///
