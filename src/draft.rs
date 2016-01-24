@@ -82,7 +82,7 @@ impl Noun {
         Noun(Inner::Cell(Rc::new(a.clone()), Rc::new(b.clone())))
     }
 
-    fn noun<T: ToNoun>(item: T) -> Noun {
+    fn from<T: ToNoun>(item: T) -> Noun {
         item.to_noun()
     }
 }
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn scratch() {
-        let x = Noun::noun(123u32);
-        assert!(x == Noun::noun(123u8));
+        let x = Noun::from(123u32);
+        assert!(x == Noun::from(123u8));
     }
 }
