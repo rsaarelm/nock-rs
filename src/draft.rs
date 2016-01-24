@@ -3,18 +3,18 @@ use std::rc::Rc;
 use std::hash;
 use digit_slice::DigitSlice;
 
-pub enum Shape<'a> {
-    /// A natural number represented as a little-endian sequence of 8-bit
-    /// digits.
-    Atom(&'a [u8]),
-    /// An ordered pair of nouns.
-    Cell(&'a Noun, &'a Noun),
+/// A wrapper for referencing Noun-like patterns.
+pub enum Shape<A, N> {
+    Atom(A),
+    Cell(N, N),
 }
 
 /// A Nock noun, the basic unit of representation.
 ///
 /// A noun is an atom or a cell. An atom is any natural number. A cell is any
 /// ordered pair of nouns.
+///
+/// Atoms are represented by a little-endian byte array of 8-bit digits.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Noun(Inner);
 
@@ -25,7 +25,7 @@ enum Inner {
 }
 
 impl Noun {
-    fn get<'a>(&'a self) -> Shape<'a> {
+    fn get<'a>(&'a self) -> Shape<&'a [u8], &'a Noun> {
         match self.0 {
             Inner::Atom(ref v) => Shape::Atom(&v),
             Inner::Cell(ref a, ref b) => Shape::Cell(&*a, &*b),
@@ -38,17 +38,15 @@ impl Noun {
     }
 
     /// Run a memoizing fold over the noun
-    fn fold<'a, F, G, T: Clone>(&'a self, mut leaf: F, mut branch: G) -> T
-        where F: FnMut(&[u8]) -> T,
-              G: FnMut(&T, &T) -> T
+    fn fold<'a, F, T>(&'a self, mut f: F) -> T
+        where F: FnMut(Shape<&'a [u8], T>) -> T,
+              T: Clone
     {
-        fn h<'a, F, G, T>(noun: &'a Noun,
-                          memo: &mut HashMap<usize, T>,
-                          leaf: &mut F,
-                          branch: &mut G)
-                          -> T
-            where F: FnMut(&[u8]) -> T,
-                  G: FnMut(&T, &T) -> T,
+        fn h<'a, F, T>(noun: &'a Noun,
+                       memo: &mut HashMap<usize, T>,
+                       f: &mut F)
+                       -> T
+            where F: FnMut(Shape<&'a [u8], T>) -> T,
                   T: Clone
         {
             let key = noun.addr();
@@ -57,11 +55,12 @@ impl Noun {
                 memo.get(&key).unwrap().clone()
             } else {
                 let ret = match noun.get() {
-                    Shape::Atom(x) => leaf(x),
+                    Shape::Atom(x) => f(Shape::Atom(x)),
                     Shape::Cell(ref a, ref b) => {
-                        let a = h(*a, memo, leaf, branch);
-                        let b = h(*b, memo, leaf, branch);
-                        branch(&a, &b)
+                        let a = h(*a, memo, f);
+                        let b = h(*b, memo, f);
+                        let ret = f(Shape::Cell(a, b));
+                        ret
                     }
                 };
                 memo.insert(key, ret.clone());
@@ -69,21 +68,38 @@ impl Noun {
             }
         }
 
-        h(self, &mut HashMap::new(), &mut leaf, &mut branch)
+        h(self, &mut HashMap::new(), &mut f)
     }
 
     /// Build a new atom noun from a little-endian 8-bit digit sequence.
-    fn atom(digits: &[u8]) -> Noun {
+    pub fn atom(digits: &[u8]) -> Noun {
         Noun(Inner::Atom(Rc::new(digits.to_vec())))
     }
 
     /// Build a new cell noun from two existing nouns.
-    fn cell(&mut self, a: &Noun, b: &Noun) -> Noun {
+    pub fn cell(&mut self, a: &Noun, b: &Noun) -> Noun {
         Noun(Inner::Cell(Rc::new(a.clone()), Rc::new(b.clone())))
     }
 
-    fn from<T: ToNoun>(item: T) -> Noun {
+    pub fn from<T: ToNoun>(item: T) -> Noun {
         item.to_noun()
+    }
+}
+
+impl hash::Hash for Noun {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        fn f<H: hash::Hasher>(state: &mut H, shape: Shape<&[u8], u64>) -> u64 {
+            match shape {
+                Shape::Atom(x) => x.hash(state),
+                Shape::Cell(a, b) => {
+                    a.hash(state);
+                    b.hash(state);
+                }
+            }
+            state.finish()
+        }
+        self.fold(|x| f(state, x))
+            .hash(state);
     }
 }
 
