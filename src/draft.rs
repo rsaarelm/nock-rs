@@ -4,6 +4,7 @@ use std::hash;
 use digit_slice::{DigitSlice, FromDigits};
 
 /// A wrapper for referencing Noun-like patterns.
+#[derive(Copy, Clone)]
 pub enum Shape<A, N> {
     Atom(A),
     Cell(N, N),
@@ -24,12 +25,39 @@ enum Inner {
     Cell(Rc<Noun>, Rc<Noun>),
 }
 
+pub type NounShape<'a> = Shape<&'a [u8], &'a Noun>;
+
 impl Noun {
-    fn get<'a>(&'a self) -> Shape<&'a [u8], &'a Noun> {
+    fn get<'a>(&'a self) -> NounShape<'a> {
         match self.0 {
             Inner::Atom(ref v) => Shape::Atom(&v),
             Inner::Cell(ref a, ref b) => Shape::Cell(&*a, &*b),
         }
+    }
+
+    /// Pattern-match a noun with shape [p q r].
+    ///
+    /// The digit sequence shows the branch length of each leaf node in the
+    /// expression being matched. 122 has the leftmost leaf 1 step away from
+    /// the root and the two leaves on the right both 2 steps away from the
+    /// root.
+    pub fn get_122<'a>(&'a self) -> Option<(NounShape<'a>, NounShape<'a>, NounShape<'a>)> {
+        if let Shape::Cell(ref a, ref b) = self.get() {
+            if let Shape::Cell(ref b, ref c) = b.get() {
+                return Some((a.get(), b.get(), c.get()));
+            }
+        }
+        None
+    }
+
+    /// Pattern-match a noun with shape [[p q] r].
+    pub fn get_221<'a>(&'a self) -> Option<(NounShape<'a>, NounShape<'a>, NounShape<'a>)> {
+        if let Shape::Cell(ref a, ref c) = self.get() {
+            if let Shape::Cell(ref a, ref b) = a.get() {
+                return Some((a.get(), b.get(), c.get()));
+            }
+        }
+        None
     }
 
     /// Memory address or other unique identifier for the noun.
@@ -166,10 +194,14 @@ impl<T, U> FromNoun for (T, U) where T: FromNoun, U: FromNoun {
 
 // TODO: FromNoun/ToNoun for String, compatible with cord datatype.
 
-// TODO: FromNoun/ToNoun for signed numbers
+// TODO: FromNoun/ToNoun for signed numbers using the Urbit representation
+// convention.
 
 
-// For the n! macro to work.
+// Into-conversion is only used so that we can put untyped numeric literals in
+// the noun-constructing macro and have them typed as unsigned. If the noun
+// constructor uses ToNoun, literals are assumed to be i32, which does not map
+// to atoms in quite the way we want.
 impl Into<Noun> for u64 {
     fn into(self) -> Noun {
         Noun::from(self)
