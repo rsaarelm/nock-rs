@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::hash;
-use digit_slice::DigitSlice;
+use digit_slice::{DigitSlice, FromDigits};
 
 /// A wrapper for referencing Noun-like patterns.
 pub enum Shape<A, N> {
@@ -37,6 +37,22 @@ impl Noun {
         &*self as *const _ as usize
     }
 
+    /// Build a new atom noun from a little-endian 8-bit digit sequence.
+    pub fn atom(digits: &[u8]) -> Noun {
+        Noun(Inner::Atom(Rc::new(digits.to_vec())))
+    }
+
+    /// Build a new cell noun from two existing nouns.
+    pub fn cell(a: Noun, b: Noun) -> Noun {
+        Noun(Inner::Cell(Rc::new(a), Rc::new(b)))
+    }
+
+    /// Build a noun from a convertible value.
+    pub fn from<T: ToNoun>(item: T) -> Noun {
+        item.to_noun()
+    }
+
+
     /// Run a memoizing fold over the noun
     fn fold<'a, F, T>(&'a self, mut f: F) -> T
         where F: FnMut(Shape<&'a [u8], T>) -> T,
@@ -71,19 +87,6 @@ impl Noun {
         h(self, &mut HashMap::new(), &mut f)
     }
 
-    /// Build a new atom noun from a little-endian 8-bit digit sequence.
-    pub fn atom(digits: &[u8]) -> Noun {
-        Noun(Inner::Atom(Rc::new(digits.to_vec())))
-    }
-
-    /// Build a new cell noun from two existing nouns.
-    pub fn cell(&mut self, a: &Noun, b: &Noun) -> Noun {
-        Noun(Inner::Cell(Rc::new(a.clone()), Rc::new(b.clone())))
-    }
-
-    pub fn from<T: ToNoun>(item: T) -> Noun {
-        item.to_noun()
-    }
 }
 
 impl hash::Hash for Noun {
@@ -103,6 +106,7 @@ impl hash::Hash for Noun {
     }
 }
 
+
 /// Trait for types that can convert themselves to a noun.
 pub trait ToNoun {
     fn to_noun(&self) -> Noun;
@@ -115,13 +119,94 @@ impl<T> ToNoun for T where T: DigitSlice
     }
 }
 
+
+/// A trait for types that can be instantiated from a Nock noun.
+pub trait FromNoun: Sized {
+    /// The associated error.
+    type Err;
+
+    /// Try to convert a noun to an instance of the type.
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err>;
+}
+
+impl<T> FromNoun for T where T: FromDigits {
+    type Err = ();
+
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+        match n.get() {
+            Shape::Atom(x) => T::from_digits(x).map_err(|_| ()),
+            _ => Err(())
+        }
+    }
+}
+
+impl<T, U> FromNoun for (T, U) where T: FromNoun, U: FromNoun {
+    type Err = ();
+
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+        match n.get() {
+            Shape::Cell(a, b) => {
+                let t = try!(T::from_noun(a).map_err(|_| ()));
+                let u = try!(U::from_noun(b).map_err(|_| ()));
+                Ok((t, u))
+            }
+            _ => Err(())
+        }
+    }
+}
+
+// TODO: FromNoun for T: FromIterator<U: FromNoun>. Pair impl should give us
+// a HashMap derivation then. Use ~-terminated cell sequence as backend.
+
+// TODO: Turn a ~-terminated noun into a vec or an iter. Can fail if the last
+// element isn't a ~, and we'll only know when we hit the last element...
+// Return type is Option<Vec<&'a Noun>>?
+
+// TODO: ToNoun for T: IntoIterator<U: ToNoun>.
+
+// TODO: FromNoun/ToNoun for String, compatible with cord datatype.
+
+// TODO: FromNoun/ToNoun for signed numbers
+
+
+// For the n! macro to work.
+impl Into<Noun> for u64 {
+    fn into(self) -> Noun {
+        Noun::from(self)
+    }
+}
+
+/// Macro for noun literals.
+///
+/// Rust n![1, 2, 3] corresponds to Nock [1 2 3]
+#[macro_export]
+macro_rules! n {
+    [$x:expr, $y:expr] => { $crate::draft::Noun::cell($x.into(), $y.into()) };
+    [$x:expr, $y:expr, $($ys:expr),+] => { $crate::draft::Noun::cell($x.into(), n![$y, $($ys),+]) };
+}
+
 #[cfg(test)]
 mod tests {
+    use std::hash;
     use super::Noun;
 
     #[test]
     fn scratch() {
         let x = Noun::from(123u32);
         assert!(x == Noun::from(123u8));
+    }
+
+    fn hash<T: hash::Hash>(t: &T) -> u64 {
+        use std::hash::Hasher;
+        let mut s = hash::SipHasher::new();
+        t.hash(&mut s);
+        s.finish()
+    }
+
+    #[test]
+    fn test_fold() {
+        assert_eq!(hash(&n![1, 2, 3]), hash(&n![1, 2, 3]));
+        assert!(hash(&n![n![1, 2], 3]) != hash(&n![1, 2, 3]));
+        assert!(hash(&n![1, 2, 3]) != hash(&n![1, 2]));
     }
 }

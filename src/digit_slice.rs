@@ -11,8 +11,10 @@ pub trait DigitSlice {
 }
 
 pub trait FromDigits: Sized {
+    type Err;
+
     /// Construct an unsigned integer type from little-endian byte digits.
-    fn from_digits(&[u8]) -> Option<Self>;
+    fn from_digits(&[u8]) -> Result<Self, Self::Err>;
 }
 
 impl DigitSlice for BigUint {
@@ -29,7 +31,9 @@ impl DigitSlice for BigUint {
 }
 
 impl FromDigits for BigUint {
-    fn from_digits(digits: &[u8]) -> Option<BigUint> {
+    type Err = ();
+
+    fn from_digits(digits: &[u8]) -> Result<Self, Self::Err> {
         let mut v = digits.to_vec();
         while (v.len() % 4) != 0 {
             v.push(0);
@@ -45,7 +49,7 @@ impl FromDigits for BigUint {
             mem::forget(v);
 
             let biguint_vec: Vec<BigDigit> = Vec::from_raw_parts(ptr, len, cap);
-            Some(mem::transmute(biguint_vec))
+            Ok(mem::transmute(biguint_vec))
         }
     }
 }
@@ -66,14 +70,16 @@ macro_rules! primitive_impl {
         }
 
         impl FromDigits for $t {
+            type Err = ();
+
             #[inline]
-            fn from_digits(digits: &[u8]) -> Option<$t> {
-                if digits.len() > mem::size_of::<$t>() { return None; }
+            fn from_digits(digits: &[u8]) -> Result<$t, Self::Err> {
+                if digits.len() > mem::size_of::<$t>() { return Err(()); }
                 let mut ret = 0 as $t;
                 for i in 0..digits.len() {
                     ret |= digits[i] as $t << (i * 8);
                 }
-                Some(ret)
+                Ok(ret)
             }
         }
     }
@@ -106,12 +112,12 @@ mod tests {
                        .as_digits(),
                    &[0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11]);
 
-        assert_eq!(u8::from_digits(&[0x44]), Some(0x44));
-        assert_eq!(u8::from_digits(&[0x44, 0x33]), None);
-        assert_eq!(u32::from_digits(&[0x44, 0x33]), Some(0x3344));
+        assert_eq!(u8::from_digits(&[0x44]), Ok(0x44));
+        assert_eq!(u8::from_digits(&[0x44, 0x33]), Err(()));
+        assert_eq!(u32::from_digits(&[0x44, 0x33]), Ok(0x3344));
 
         assert_eq!(BigUint::from_digits(&[0x99, 0x88, 0x77, 0x66, 0x55,
-                                          0x44, 0x33, 0x22, 0x11]),
-                   BigUint::parse_bytes(b"112233445566778899", 16));
+                                          0x44, 0x33, 0x22, 0x11]).unwrap(),
+                   BigUint::parse_bytes(b"112233445566778899", 16).unwrap());
     }
 }
