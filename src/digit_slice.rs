@@ -117,7 +117,8 @@ mod tests {
         assert_eq!(u32::from_digits(&[0x44, 0x33]), Ok(0x3344));
 
         assert_eq!(BigUint::from_digits(&[0x99, 0x88, 0x77, 0x66, 0x55,
-                                          0x44, 0x33, 0x22, 0x11]).unwrap(),
+                                          0x44, 0x33, 0x22, 0x11])
+                       .unwrap(),
                    BigUint::parse_bytes(b"112233445566778899", 16).unwrap());
     }
 }

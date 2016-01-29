@@ -52,124 +52,126 @@
 extern crate test;
 extern crate num;
 
+use std::collections::HashMap;
+use std::rc::Rc;
+use std::str;
 use std::fmt;
 use std::iter;
-use std::str;
-use std::default;
-use std::rc::Rc;
 use std::hash;
-use num::bigint::BigUint;
-use num::traits::{ToPrimitive, FromPrimitive, Zero, One};
-use num::integer::Integer;
+use std::default;
+use num::BigUint;
+use num::traits::{Zero, One, FromPrimitive};
+use digit_slice::{DigitSlice, FromDigits};
 
-mod draft;
 mod digit_slice;
+
+/// A wrapper for referencing Noun-like patterns.
+#[derive(Copy, Clone)]
+pub enum Shape<A, N> {
+    Atom(A),
+    Cell(N, N),
+}
 
 /// A Nock noun, the basic unit of representation.
 ///
 /// A noun is an atom or a cell. An atom is any natural number. A cell is any
 /// ordered pair of nouns.
 ///
-/// # Examples
-///
-/// ```
-/// let subject: nock::Noun = "19".parse().unwrap();
-/// let formula: nock::Noun = "[4 0 1]".parse().unwrap();
-/// assert_eq!(format!("{}", nock::nock_on(&subject, &formula).unwrap()), "20");
-/// ```
+/// Atoms are represented by a little-endian byte array of 8-bit digits.
 #[derive(Clone, PartialEq, Eq)]
-pub enum Noun {
-    /// A single positive integer
-    Atom(u32),
-    /// A single positive large integer
-    BigAtom(BigUint), // Might want to make this Rc too to ensure Noun stays lightweight.
-    /// A a pair of two nouns
+pub struct Noun(Inner);
+
+#[derive(Clone, PartialEq, Eq)]
+enum Inner {
+    Atom(Rc<Vec<u8>>),
     Cell(Rc<Noun>, Rc<Noun>),
 }
 
-impl Noun {
-    /// Construct an atom equivalent to a list of bytes.
-    ///
-    /// Bytes before the first non-zero byte in the byte slice will be
-    /// ignored. This is because the most significant bit of the binary
-    /// representation of an atom will always be 1.
-    ///
-    /// If the bytes are a text string, the atom will be a cord with that
-    /// text.
-    pub fn from_bytes(bytes: &[u8]) -> Noun {
-        let mut x = Zero::zero();
-        for i in bytes.iter().rev() {
-            x = x << 8;
-            x = x + BigUint::from_u8(*i).unwrap();
-        }
+pub type NounShape<'a> = Shape<&'a [u8], &'a Noun>;
 
-        Noun::from_biguint(x)
+impl Noun {
+    fn get<'a>(&'a self) -> NounShape<'a> {
+        match self.0 {
+            Inner::Atom(ref v) => Shape::Atom(&v),
+            Inner::Cell(ref a, ref b) => Shape::Cell(&*a, &*b),
+        }
     }
 
-    /// If the noun has structure [a [b c]], return a tuple of a, b and c.
-    fn as_triple(&self) -> Option<(Rc<Noun>, Rc<Noun>, Rc<Noun>)> {
-        if let &Cell(ref a, ref bc) = self {
-            if let Cell(ref b, ref c) = **bc {
-                return Some((a.clone(), b.clone(), c.clone()));
+    /// Pattern-match a noun with shape [p q r].
+    ///
+    /// The digit sequence shows the branch length of each leaf node in the
+    /// expression being matched. 122 has the leftmost leaf 1 step away from
+    /// the root and the two leaves on the right both 2 steps away from the
+    /// root.
+    pub fn get_122<'a>(&'a self) -> Option<(&'a Noun, &'a Noun, &'a Noun)> {
+        if let Shape::Cell(ref a, ref b) = self.get() {
+            if let Shape::Cell(ref b, ref c) = b.get() {
+                return Some((a, b, c));
             }
         }
         None
     }
 
-    /// If the noun is an atom, build a byte slice representation of it.
-    pub fn to_bytes(&self) -> Option<Vec<u8>> {
-        let mut ret = Vec::new();
-        let mut atom;
-        match self {
-            &Atom(ref x) => atom = BigUint::from_u32(*x).unwrap(),
-            &BigAtom(ref x) => atom = x.clone(),
-            _ => return None,
-        }
-
-        while atom > Zero::zero() {
-            let (a, byte) = atom.div_mod_floor(&BigUint::from_u32(0x100).unwrap());
-            ret.push(byte.to_u8().unwrap());
-            atom = a;
-        }
-
-        Some(ret)
+    /// Memory address or other unique identifier for the noun.
+    fn addr(&self) -> usize {
+        &*self as *const _ as usize
     }
 
-    /// Build either small or large atom, depending on the size of the
-    /// BigUint.
-    pub fn from_biguint(num: BigUint) -> Noun {
-        num.to_u32().map_or(BigAtom(num), |x| Atom(x))
+    /// Build a new atom noun from a little-endian 8-bit digit sequence.
+    pub fn atom(digits: &[u8]) -> Noun {
+        Noun(Inner::Atom(Rc::new(digits.to_vec())))
+    }
+
+    /// Build a new cell noun from two existing nouns.
+    pub fn cell(a: Noun, b: Noun) -> Noun {
+        Noun(Inner::Cell(Rc::new(a), Rc::new(b)))
+    }
+
+    /// Build a noun from a convertible value.
+    pub fn from<T: ToNoun>(item: T) -> Noun {
+        item.to_noun()
+    }
+
+    /// Match noun if it's an atom that's a small integer.
+    ///
+    /// Will not match atoms that are larger than 2^32, but is not guaranteed
+    /// to match atoms that are smaller than 2^32 but not by much.
+    pub fn as_u32(&self) -> Option<u32> {
+        if let &Noun(Inner::Atom(ref digits)) = self {
+            u32::from_digits(digits).ok()
+        } else {
+            None
+        }
     }
 
     /// Run a memoizing fold over the noun
-    pub fn fold<'a, F, T: Clone>(&'a self, mut f: F) -> T
-        where F: FnMut(FoldState<'a, T>) -> T
+    fn fold<'a, F, T>(&'a self, mut f: F) -> T
+        where F: FnMut(Shape<&'a [u8], T>) -> T,
+              T: Clone
     {
-        use std::collections::HashMap;
-        fn g<'a, F, T: Clone>(noun: &'a Rc<Noun>, memo: &mut HashMap<usize, T>, f: &mut F) -> T
-            where F: FnMut(FoldState<'a, T>) -> T
+        fn h<'a, F, T>(noun: &'a Noun,
+                       memo: &mut HashMap<usize, T>,
+                       f: &mut F)
+                       -> T
+            where F: FnMut(Shape<&'a [u8], T>) -> T,
+                  T: Clone
         {
-            let key = &*noun as *const _ as usize;
+            let key = noun.addr();
+
             if memo.contains_key(&key) {
                 memo.get(&key).unwrap().clone()
             } else {
-                let ret = h(noun, memo, f);
+                let ret = match noun.get() {
+                    Shape::Atom(x) => f(Shape::Atom(x)),
+                    Shape::Cell(ref a, ref b) => {
+                        let a = h(*a, memo, f);
+                        let b = h(*b, memo, f);
+                        let ret = f(Shape::Cell(a, b));
+                        ret
+                    }
+                };
                 memo.insert(key, ret.clone());
                 ret
-            }
-        }
-
-        fn h<'a, F, T: Clone>(noun: &'a Noun, memo: &mut HashMap<usize, T>, f: &mut F) -> T
-            where F: FnMut(FoldState<'a, T>) -> T
-        {
-            match noun {
-                &Atom(ref a) => f(FoldState::Atom(*a)),
-                &BigAtom(ref a) => f(FoldState::BigAtom(a)),
-                &Cell(ref p, ref q) => {
-                    let p = g(p, memo, f);
-                    let q = g(q, memo, f);
-                    f(FoldState::Cell(p, q))
-                }
             }
         }
 
@@ -177,15 +179,26 @@ impl Noun {
     }
 }
 
-pub enum FoldState<'a, T> {
-    Atom(u32),
-    BigAtom(&'a BigUint),
-    Cell(T, T),
+impl default::Default for Noun {
+    fn default() -> Self {
+        Noun::from(0u32)
+    }
 }
 
-impl default::Default for Noun {
-    fn default() -> Noun {
-        Noun::Atom(0)
+impl hash::Hash for Noun {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        fn f<H: hash::Hasher>(state: &mut H, shape: Shape<&[u8], u64>) -> u64 {
+            match shape {
+                Shape::Atom(x) => x.hash(state),
+                Shape::Cell(a, b) => {
+                    a.hash(state);
+                    b.hash(state);
+                }
+            }
+            state.finish()
+        }
+        self.fold(|x| f(state, x))
+            .hash(state);
     }
 }
 
@@ -197,84 +210,294 @@ impl iter::FromIterator<Noun> for Noun {
         v.reverse();
 
         v.into_iter()
-         .fold(None, |acc, i| {
+         .fold(None, move |acc, i| {
              acc.map_or_else(|| Some(i.clone()),
-                             |a| Some(Noun::Cell(Rc::new(i.clone()), Rc::new(a))))
+                             |a| Some(Noun::cell(i.clone(), a)))
          })
          .expect("Can't make noun from empty list")
     }
 }
 
-impl fmt::Display for Noun {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Atom(ref n) => return dot_separators(f, &n),
-            &BigAtom(ref n) => return dot_separators(f, &n),
-            &Cell(ref a, ref b) => {
-                try!(write!(f, "[{} ", a));
-                // List pretty-printer.
-                let mut cur = b;
-                loop {
-                    match **cur {
-                        Cell(ref a, ref b) => {
-                            try!(write!(f, "{} ", a));
-                            cur = &b;
+
+
+/// Trait for types that can convert themselves to a noun.
+pub trait ToNoun {
+    fn to_noun(&self) -> Noun;
+}
+
+impl<T> ToNoun for T where T: DigitSlice
+{
+    fn to_noun(&self) -> Noun {
+        Noun::atom(self.as_digits())
+    }
+}
+
+
+/// A trait for types that can be instantiated from a Nock noun.
+pub trait FromNoun: Sized {
+    /// The associated error.
+    type Err;
+
+    /// Try to convert a noun to an instance of the type.
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err>;
+}
+
+impl<T> FromNoun for T where T: FromDigits
+{
+    type Err = ();
+
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+        match n.get() {
+            Shape::Atom(x) => T::from_digits(x).map_err(|_| ()),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T, U> FromNoun for (T, U)
+    where T: FromNoun,
+          U: FromNoun
+{
+    type Err = ();
+
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+        match n.get() {
+            Shape::Cell(a, b) => {
+                let t = try!(T::from_noun(a).map_err(|_| ()));
+                let u = try!(U::from_noun(b).map_err(|_| ()));
+                Ok((t, u))
+            }
+            _ => Err(()),
+        }
+    }
+}
+
+// TODO: FromNoun for T: FromIterator<U: FromNoun>. Pair impl should give us
+// a HashMap derivation then. Use ~-terminated cell sequence as backend.
+
+// TODO: Turn a ~-terminated noun into a vec or an iter. Can fail if the last
+// element isn't a ~, and we'll only know when we hit the last element...
+// Return type is Option<Vec<&'a Noun>>?
+
+// TODO: ToNoun for T: IntoIterator<U: ToNoun>.
+
+// TODO: FromNoun/ToNoun for String, compatible with cord datatype.
+
+// TODO: FromNoun/ToNoun for signed numbers using the Urbit representation
+// convention.
+
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct NockError;
+
+pub type NockResult = Result<Noun, NockError>;
+
+/// Evaluate the nock `*[subject formula]`
+pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
+    loop {
+        if let Shape::Cell(ops, tail) = formula.clone().get() {
+            match ops.as_u32() {
+                // Axis
+                Some(0) => {
+                    match tail.get() {
+                        Shape::Atom(ref x) => return axis(x, &subject),
+                        _ => return Err(NockError),
+                    }
+                }
+
+                // Just
+                Some(1) => return Ok(tail.clone()),
+
+                // Fire
+                Some(2) => {
+                    match tail.get() {
+                        Shape::Cell(ref b, ref c) => {
+                            let p = try!(nock_on(subject.clone(),
+                                                 (*b).clone()));
+                            let q = try!(nock_on(subject, (*c).clone()));
+                            subject = p;
+                            formula = q;
+                            continue;
                         }
-                        Atom(ref n) => {
-                            try!(dot_separators(f, &n));
-                            return write!(f, "]");
+                        _ => return Err(NockError),
+                    }
+                }
+
+                // Depth
+                Some(3) => {
+                    let p = try!(nock_on(subject.clone(), (*tail).clone()));
+                    return match p.get() {
+                        Shape::Cell(_, _) => Ok(Noun::from(0u32)),
+                        _ => Ok(Noun::from(1u32)),
+                    };
+                }
+
+                // Bump
+                Some(4) => {
+                    let p = try!(nock_on(subject.clone(), (*tail).clone()));
+                    return match p.get() {
+                        Shape::Atom(ref x) => {
+                            // TODO: Non-bignum optimization
+                            Ok(Noun::from(BigUint::from_digits(x).unwrap() +
+                                          BigUint::one()))
                         }
-                        BigAtom(ref n) => {
-                            try!(dot_separators(f, &n));
-                            return write!(f, "]");
+                        _ => Err(NockError),
+                    };
+                }
+
+                // Same
+                Some(5) => {
+                    let p = try!(nock_on(subject.clone(), (*tail).clone()));
+                    return match p.get() {
+                        Shape::Cell(ref a, ref b) => {
+                            if a == b {
+                                // Yes.
+                                return Ok(Noun::from(0u32));
+                            } else {
+                                // No.
+                                return Ok(Noun::from(1u32));
+                            }
                         }
+                        _ => return Err(NockError),
+                    };
+                }
+
+                // If
+                Some(6) => {
+                    if let Some((b, c, d)) = tail.get_122() {
+                        let p = try!(nock_on(subject.clone(), (*b).clone()));
+                        match p.get() {
+                            Shape::Atom(ref x) => {
+                                if x == &0u32.as_digits() {
+                                    formula = (*c).clone();
+                                } else if x == &1u32.as_digits() {
+                                    formula = (*d).clone();
+                                } else {
+                                    return Err(NockError);
+                                }
+                            }
+                            _ => return Err(NockError),
+                        }
+                        continue;
+                    } else {
+                        return Err(NockError);
+                    }
+                }
+
+                // Compose
+                Some(7) => {
+                    match tail.get() {
+                        Shape::Cell(ref b, ref c) => {
+                            let p = try!(nock_on(subject.clone(),
+                                                 (*b).clone()));
+                            subject = p;
+                            formula = (*c).clone();
+                            continue;
+                        }
+                        _ => return Err(NockError),
+                    }
+                }
+
+                // Push
+                Some(8) => {
+                    match tail.get() {
+                        Shape::Cell(ref b, ref c) => {
+                            let p = try!(nock_on(subject.clone(),
+                                                 (*b).clone()));
+                            subject = Noun::cell(p, subject);
+                            formula = (*c).clone();
+                            continue;
+                        }
+                        _ => return Err(NockError),
+                    }
+                }
+
+                // Call
+                Some(9) => {
+                    match tail.get() {
+                        Shape::Cell(ref b, ref c) => {
+                            subject = try!(nock_on(subject.clone(),
+                                                   (*c).clone()));
+                            formula = try!(nock_on(subject.clone(),
+                                             Noun::cell(Noun::from(0u32),
+                                                        (*b).clone())));
+                            continue;
+                        }
+                        _ => return Err(NockError),
+                    }
+                }
+
+                // Hint
+                Some(10) => {
+                    match tail.get() {
+                        Shape::Cell(ref _b, ref c) => {
+                            // Throw away b.
+
+                            // TODO: Check if b is a cell and fail if it would
+                            // crash.
+                            formula = (*c).clone();
+                            continue;
+                        }
+                        _ => return Err(NockError),
+                    }
+                }
+
+                // Unhandled opcode
+                Some(_) => {
+                    return Err(NockError);
+                }
+
+                None => {
+                    if let Shape::Cell(_, _) = ops.get() {
+                        // Autocons
+                        let a = try!(nock_on(subject.clone(), ops.clone()));
+                        let b = try!(nock_on(subject, tail.clone()));
+                        return Ok(Noun::cell(a, b));
+                    } else {
+                        return Err(NockError);
                     }
                 }
             }
-        }
-
-        fn dot_separators<T: fmt::Display>(f: &mut fmt::Formatter, item: &T) -> fmt::Result {
-            let s = format!("{}", item);
-            let phase = s.len() % 3;
-            for (i, c) in s.chars().enumerate() {
-                if i > 0 && i % 3 == phase {
-                    try!(write!(f, "."));
-                }
-                try!(write!(f, "{}", c));
-            }
-            Ok(())
+        } else {
+            return Err(NockError);
         }
     }
 }
 
-impl fmt::Debug for Noun {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self)
-    }
-}
+fn axis(atom: &[u8], subject: &Noun) -> NockResult {
+    // TODO: Optimize for small atoms.
+    fn fas(x: BigUint, n: &Noun) -> NockResult {
+        let two = BigUint::from_u32(2).unwrap();
+        let three = BigUint::from_u32(3).unwrap();
+        if x == BigUint::zero() {
+            return Err(NockError);
+        }
+        if x == BigUint::one() {
+            return Ok(n.clone());
+        }
+        if let Shape::Cell(ref a, ref b) = n.get() {
+            if x == two {
+                return Ok((*a).clone());
+            } else if x == three {
+                return Ok((*b).clone());
+            } else {
+                let half = x.clone() >> 1;
+                let p = try!(fas(half, n));
 
-impl hash::Hash for Noun {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        fn f<H: hash::Hasher>(state: &mut H, x: FoldState<u64>) -> u64 {
-            match x {
-                FoldState::Atom(a) => {
-                    a.hash(state);
-                    state.finish()
-                }
-                FoldState::BigAtom(a) => {
-                    a.hash(state);
-                    state.finish()
-                }
-                FoldState::Cell(p, q) => {
-                    p.hash(state);
-                    q.hash(state);
-                    state.finish()
+                if x % two.clone() == BigUint::zero() {
+                    fas(two, &p)
+                } else {
+                    fas(three, &p)
                 }
             }
+        } else {
+            return Err(NockError);
         }
-        self.fold(|x| f(state, x)).hash(state);
     }
+
+    fas(BigUint::from_digits(atom).unwrap(), subject)
 }
+
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct ParseError;
@@ -285,7 +508,8 @@ impl str::FromStr for Noun {
     fn from_str(s: &str) -> Result<Self, ParseError> {
         return parse(&mut s.chars().peekable());
 
-        fn parse<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>) -> Result<Noun, ParseError> {
+        fn parse<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>)
+                                           -> Result<Noun, ParseError> {
             eat_space(input);
             match input.peek().map(|&x| x) {
                 Some(c) if c.is_digit(10) => parse_atom(input),
@@ -332,7 +556,7 @@ impl str::FromStr for Noun {
                                   .parse()
                                   .expect("Failed to parse atom");
 
-            Ok(Noun::from_biguint(num))
+            Ok(Noun::from(num))
         }
 
         /// Parse a cell, a bracketed pair of nouns.
@@ -355,7 +579,9 @@ impl str::FromStr for Noun {
             loop {
                 eat_space(input);
                 match input.peek().map(|&x| x) {
-                    Some(c) if c.is_digit(10) => elts.push(try!(parse_atom(input))),
+                    Some(c) if c.is_digit(10) => {
+                        elts.push(try!(parse_atom(input)))
+                    }
                     Some(c) if c == '[' => elts.push(try!(parse_cell(input))),
                     Some(c) if c == ']' => {
                         input.next();
@@ -364,6 +590,8 @@ impl str::FromStr for Noun {
                     _ => return Err(ParseError),
                 }
             }
+
+
 
             Ok(elts.into_iter().collect())
         }
@@ -381,301 +609,81 @@ impl str::FromStr for Noun {
     }
 }
 
-
-/// A trait for types that can be instantiated from a Nock noun.
-pub trait FromNoun: Sized {
-    /// The associated error.
-    type Err;
-
-    /// Try to convert a noun to an instance of the type.
-    fn from_noun(n: &Noun) -> Result<Self, Self::Err>;
-}
-
-impl FromNoun for u32 {
-    type Err = ();
-
-    fn from_noun(n: &Noun) -> Result<u32, ()> {
-        match n {
-            &Atom(ref n) => Ok(*n),
-            _ => Err(())
-        }
-    }
-}
-
-impl Into<Noun> for u32 {
-    fn into(self) -> Noun {
-        Noun::Atom(self)
-    }
-}
-
-impl FromNoun for BigUint {
-    type Err = ();
-
-    fn from_noun(n: &Noun) -> Result<BigUint, ()> {
-        match n {
-            &Atom(ref n) => Ok(BigUint::from_u32(*n).unwrap()),
-            &BigAtom(ref n) => Ok(n.clone()),
-            _ => Err(())
-        }
-    }
-}
-
-impl Into<Noun> for BigUint {
-    fn into(self) -> Noun {
-        Noun::from_biguint(self)
-    }
-}
-
-// TODO: FromNoun impls for
-// - primitive unsigned integer types
-// - BigUint
-// - Signed integer types (use the Hoon encoding)
-// - (FromNoun, FromNoun) as [a b]
-// - FromIterator<FromNoun> (~-terminated cell sequence)
-// - The above two should get us HashMap and Vec conversion for free...
-// - Strings are tricky, as we can get them from either a cord (atom as &[u8])
-//   or a rope (~-terminated list of char atoms). Hm... Maybe prefer cord as
-//   the "natural" conversion and have a separate function for ropes.
-// - &[u8] is the base case for Strings, and also tricky since there are &[u8]
-//   values which can not be represented in cord style (ones with heading zero
-//   bytes). Can we do into-from for them with good conscience if the
-//   roundtrip won't preserve some values?
-// TODO: Implement From<X> for Noun for all X in list above.
-
-/// Macro for noun literals.
-///
-/// Rust n![1, 2, 3] corresponds to Nock [1 2 3]
-#[macro_export]
-macro_rules! n {
-    [$x:expr, $y:expr] => { $crate::Noun::Cell(::std::rc::Rc::new($x.into()), ::std::rc::Rc::new($y.into())) };
-    [$x:expr, $y:expr, $($ys:expr),+] => { $crate::Noun::Cell(::std::rc::Rc::new($x.into()), ::std::rc::Rc::new(n![$y, $($ys),+])) };
-}
-
-use Noun::*;
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct NockError;
-
-pub type NockResult = Result<Rc<Noun>, NockError>;
-
-/// Evaluate the nock `*[subject formula]`
-pub fn nock_on(subject: &Noun, formula: &Noun) -> NockResult {
-    tar(Cell(Rc::new(subject.clone()), Rc::new(formula.clone())))
-}
-
-fn tar(mut noun: Noun) -> NockResult {
-    use std::u32;
-    loop {
-        if let Some((subject, ops, tail)) = noun.as_triple() {
-            match *ops {
-                BigAtom(_) => {
-                    // Huge opcodes are not handled.
-                    return Err(NockError);
-                }
-                Atom(op) => {
-                    match op {
-                        // Axis
-                        0 => {
-                            match *tail {
-                                Atom(ref x) => return axis(*x, subject),
-                                BigAtom(ref x) => return big_axis(x.clone(), subject),
-                                _ => return Err(NockError),
-                            }
+impl fmt::Display for Noun {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            Inner::Atom(ref n) => return dot_separators(f, &n),
+            Inner::Cell(ref a, ref b) => {
+                try!(write!(f, "[{} ", a));
+                // List pretty-printer.
+                let mut cur = b;
+                loop {
+                    match cur.0 {
+                        Inner::Cell(ref a, ref b) => {
+                            try!(write!(f, "{} ", a));
+                            cur = &b;
                         }
-                        // Just
-                        1 => return Ok(tail),
-                        // Fire
-                        2 => {
-                            match *tail {
-                                Cell(ref b, ref c) => {
-                                    let p = try!(tar(Cell(subject.clone(), b.clone())));
-                                    let q = try!(tar(Cell(subject, c.clone())));
-                                    noun = Cell(p, q);
-                                    continue;
-                                }
-                                _ => return Err(NockError),
-                            }
-                        }
-                        // Depth
-                        3 => {
-                            let p = try!(tar(Cell(subject, tail)));
-                            return match *p {
-                                Cell(_, _) => Ok(Rc::new(Atom(0))),
-                                _ => Ok(Rc::new(Atom(1))),
-                            };
-                        }
-                        // Bump
-                        4 => {
-                            let p = try!(tar(Cell(subject, tail)));
-                            return match *p {
-                                // Switch to BigAtoms at regular atom size limit.
-                                Atom(u32::MAX) => {
-                                    Ok(Rc::new(BigAtom(BigUint::from_u32(u32::MAX).unwrap() +
-                                                       BigUint::one())))
-                                }
-                                Atom(ref x) => Ok(Rc::new(Atom(x + 1))),
-                                BigAtom(ref x) => Ok(Rc::new(BigAtom(x + BigUint::one()))),
-                                _ => Err(NockError),
-                            };
-                        }
-                        // Same
-                        5 => {
-                            let p = try!(tar(Cell(subject, tail)));
-                            return match *p {
-                                Cell(ref a, ref b) => {
-                                    if a == b {
-                                        return Ok(Rc::new(Atom(0)));
-                                    } else {
-                                        return Ok(Rc::new(Atom(1)));
-                                    }
-                                }
-                                _ => return Err(NockError),
-                            };
-                        }
-
-                        // If
-                        6 => {
-                            if let Some((b, c, d)) = tail.as_triple() {
-                                let p = try!(tar(Cell(subject.clone(), b)));
-                                match *p {
-                                    Atom(0) => noun = Cell(subject, c),
-                                    Atom(1) => noun = Cell(subject, d),
-                                    _ => return Err(NockError),
-                                }
-                                continue;
-                            } else {
-                                return Err(NockError);
-                            }
-                        }
-
-                        // Compose
-                        7 => {
-                            match *tail {
-                                Cell(ref b, ref c) => {
-                                    let p = try!(tar(Cell(subject, b.clone())));
-                                    noun = Cell(p, c.clone());
-                                    continue;
-                                }
-                                _ => return Err(NockError),
-                            }
-                        }
-
-                        // Push
-                        8 => {
-                            match *tail {
-                                Cell(ref b, ref c) => {
-                                    let p = try!(tar(Cell(subject.clone(), b.clone())));
-                                    noun = Cell(Rc::new(Cell(p, subject)), c.clone());
-                                    continue;
-                                }
-                                _ => return Err(NockError),
-                            }
-                        }
-
-                        // Call
-                        9 => {
-                            match *tail {
-                                Cell(ref b, ref c) => {
-                                    let p = try!(tar(Cell(subject.clone(), c.clone())));
-                                    let q = try!(tar(Cell(p.clone(),
-                                                          Rc::new(Cell(Rc::new(Atom(0)),
-                                                                       b.clone())))));
-                                    noun = Cell(p, q);
-                                    continue;
-                                }
-                                _ => return Err(NockError),
-                            }
-                        }
-
-                        // Hint
-                        10 => {
-                            match *tail {
-                                Cell(ref _b, ref c) => {
-                                    // Throw away b.
-                                    // XXX: Should check if b is a cell and fail if it
-                                    // would crash.
-                                    noun = Cell(subject, c.clone());
-                                    continue;
-                                }
-                                _ => return Err(NockError),
-                            }
-                        }
-
-                        _ => return Err(NockError),
-                    }
-                }
-                Cell(_, _) => {
-                    // Autocons
-                    let a = try!(tar(Cell(subject.clone(), ops.clone())));
-                    let b = try!(tar(Cell(subject, tail)));
-                    return Ok(Rc::new(Cell(a, b)));
-                }
-            }
-        }
-        return Err(NockError);
-    }
-}
-
-fn axis(x: u32, noun: Rc<Noun>) -> NockResult {
-    match x {
-        0 => Err(NockError),
-        1 => Ok(noun),
-        n => {
-            match *noun {
-                Cell(ref a, ref b) => {
-                    if n == 2 {
-                        Ok(a.clone())
-                    } else if n == 3 {
-                        Ok(b.clone())
-                    } else {
-                        let p = try!(axis(x / 2, noun.clone()));
-                        if n % 2 == 0 {
-                            axis(2, p)
-                        } else {
-                            axis(3, p)
+                        Inner::Atom(ref n) => {
+                            try!(dot_separators(f, &n));
+                            return write!(f, "]");
                         }
                     }
                 }
-                _ => Err(NockError),
             }
+        }
+
+        fn dot_separators(f: &mut fmt::Formatter,
+                          digits: &[u8])
+                          -> fmt::Result {
+            let s = format!("{}", BigUint::from_digits(digits).unwrap());
+            let phase = s.len() % 3;
+            for (i, c) in s.chars().enumerate() {
+                if i > 0 && i % 3 == phase {
+                    try!(write!(f, "."));
+                }
+                try!(write!(f, "{}", c));
+            }
+            Ok(())
         }
     }
 }
 
-fn big_axis(x: BigUint, noun: Rc<Noun>) -> NockResult {
-    // Assuming x is actually big, will switch to regular axis when we go down
-    // in size.
-    if let Cell(_, _) = *noun {
-        let half = x.clone() >> 1;
-        let p = try!(if half.bits() < 30 {
-            axis(half.to_u32().unwrap(), noun.clone())
-        } else {
-            big_axis(half, noun.clone())
-        });
-
-        if x % BigUint::from_u32(2).unwrap() == BigUint::zero() {
-            axis(2, p)
-        } else {
-            axis(3, p)
-        }
-    } else {
-        Err(NockError)
+impl fmt::Debug for Noun {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
     use std::hash;
-    use num::bigint::BigUint;
-    use num::traits::{FromPrimitive, One};
+    use super::Noun;
+    use super::Shape;
+    use num::BigUint;
     use test::Bencher;
-    use super::Noun::{self, Atom, BigAtom, Cell};
 
-    fn parses(input: &str, output: super::Noun) {
-        assert_eq!(input.parse::<super::Noun>().ok().expect("Parsing failed"),
-                   output);
+    /// Macro for noun literals.
+    ///
+    /// Rust n![1, 2, 3] corresponds to Nock [1 2 3]
+    macro_rules! n {
+    [$x:expr, $y:expr] => { super::Noun::cell($x.into(), $y.into()) };
+    [$x:expr, $y:expr, $($ys:expr),+] => { super::Noun::cell($x.into(), n![$y, $($ys),+]) };
+}
+
+    // Into-conversion is only used so that we can put untyped numeric literals in
+    // the noun-constructing macro and have them typed as unsigned. If the noun
+    // constructor uses ToNoun, literals are assumed to be i32, which does not map
+    // to atoms in quite the way we want.
+    impl Into<Noun> for u64 {
+        fn into(self) -> Noun {
+            Noun::from(self)
+        }
+    }
+
+
+    fn parses(input: &str, output: Noun) {
+        assert_eq!(input.parse::<Noun>().ok().expect("Parsing failed"), output);
     }
 
     fn produces(input: &str, output: &str) {
@@ -683,58 +691,36 @@ mod tests {
 
         let (s, f) = match input.parse::<Noun>() {
             Err(_) => panic!("Parsing failed"),
-            Ok(Cell(s, f)) => (s, f),
-            _ => panic!("Unnockable input"),
+            Ok(x) => {
+                if let Shape::Cell(ref s, ref f) = x.get() {
+                    ((*s).clone(), (*f).clone())
+                } else {
+                    panic!("Unnockable input")
+                }
+            }
         };
-        assert_eq!(format!("{}", nock_on(&s, &f).ok().expect("Eval failed")),
+        assert_eq!(format!("{}", nock_on(s, f).ok().expect("Eval failed")),
                    output);
     }
 
     #[test]
-    fn test_from_biguint() {
-        assert_eq!(Noun::from_biguint(BigUint::one()), Atom(1));
-        assert_eq!(Noun::from_biguint(BigUint::one()), Atom(1));
+    fn scratch() {
+        let x = Noun::from(123u32);
+        assert!(x == Noun::from(123u8));
+    }
 
-        let small = BigUint::from_u64(4294967295).unwrap();
-        assert_eq!(Noun::from_biguint(small), Atom(4294967295));
-
-        let big = BigUint::from_u64(4294967296).unwrap();
-        assert_eq!(Noun::from_biguint(big.clone()), BigAtom(big));
+    fn hash<T: hash::Hash>(t: &T) -> u64 {
+        use std::hash::Hasher;
+        let mut s = hash::SipHasher::new();
+        t.hash(&mut s);
+        s.finish()
     }
 
     #[test]
-    fn test_macro() {
-        assert_eq!(n![1, 2], Cell(Rc::new(Atom(1)), Rc::new(Atom(2))));
-        assert_eq!(n![1, n![2, 3]],
-                   Cell(Rc::new(Atom(1)),
-                        Rc::new(Cell(Rc::new(Atom(2)), Rc::new(Atom(3))))));
-        assert_eq!(n![1, 2, 3],
-                   Cell(Rc::new(Atom(1)),
-                        Rc::new(Cell(Rc::new(Atom(2)), Rc::new(Atom(3))))));
-        assert_eq!(n![n![1, 2], 3],
-                   Cell(Rc::new(Cell(Rc::new(Atom(1)), Rc::new(Atom(2)))),
-                        Rc::new(Atom(3))));
-        assert_eq!(n![n![1, 2], n![3, 4]],
-                   Cell(Rc::new(Cell(Rc::new(Atom(1)), Rc::new(Atom(2)))),
-                        Rc::new(Cell(Rc::new(Atom(3)), Rc::new(Atom(4))))));
-        assert_eq!(n![n![1, 2], n![3, 4], n![5, 6]],
-                   Cell(Rc::new(Cell(Rc::new(Atom(1)), Rc::new(Atom(2)))),
-                        Rc::new(Cell(Rc::new(Cell(Rc::new(Atom(3)), Rc::new(Atom(4)))),
-                                     Rc::new(Cell(Rc::new(Atom(5)), Rc::new(Atom(6))))))));
-
-        let big = BigUint::from_u64(4294967296).unwrap();
-        assert_eq!(n![0, big.clone()],
-                   Cell(Rc::new(Atom(0)), Rc::new(BigAtom(big))));
-    }
-
-    #[test]
-    fn test_from_iter() {
-        assert_eq!(Atom(1), vec![Atom(1)].into_iter().collect());
-        assert_eq!(n![1, 2], vec![Atom(1), Atom(2)].into_iter().collect());
-        assert_eq!(n![1, 2, 3],
-                   vec![Atom(1), Atom(2), Atom(3)].into_iter().collect());
-        assert_eq!(n![1, n![2, 3]],
-                   vec![Atom(1), n![2, 3]].into_iter().collect());
+    fn test_fold() {
+        assert_eq!(hash(&n![1, 2, 3]), hash(&n![1, 2, 3]));
+        assert!(hash(&n![n![1, 2], 3]) != hash(&n![1, 2, 3]));
+        assert!(hash(&n![1, 2, 3]) != hash(&n![1, 2]));
     }
 
     #[test]
@@ -746,19 +732,20 @@ mod tests {
         assert!("[]".parse::<Noun>().is_err());
         assert!("[1]".parse::<Noun>().is_err());
 
-        parses("0", Atom(0));
-        parses("1", Atom(1));
-        parses("1.000.000", Atom(1_000_000));
+        parses("0", Noun::from(0u32));
+        parses("1", Noun::from(1u32));
+        parses("1.000.000", Noun::from(1_000_000u32));
 
-        parses("4294967295", Atom(4294967295));
-        parses("4294967296",
-               BigAtom(BigUint::from_u64(4294967296).unwrap()));
+        parses("4294967295", Noun::from(4294967295u32));
+        parses("4294967296", Noun::from(4294967296u64));
 
-        parses("999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.999",
-               BigAtom(BigUint::from_str_radix("99999999999999999999999999999999999999999999999\
-                                                9999999999999",
-                                               10)
-                           .unwrap()));
+        parses("999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.\
+                999.999.999.999.999",
+               Noun::from(BigUint::from_str_radix("999999999999999999999999\
+                                                   999999999999999999999999\
+                                                   999999999999",
+                                                  10)
+                              .unwrap()));
 
         parses("[1 2]", n![1, 2]);
         parses("[1 2 3]", n![1, 2, 3]);
@@ -779,8 +766,8 @@ mod tests {
         produces("[[[97 2] [1 42 0]] 0 7]", "[42 0]");
 
         // Bignum axis.
-        produces("[[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 \
-                  29 30 31 32 33] 0 8589934591]",
+        produces("[[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 \
+                  23 24 25 26 27 28 29 30 31 32 33] 0 8589934591]",
                  "33");
     }
 
@@ -856,9 +843,10 @@ mod tests {
 
         // Fibonacci numbers,
         // https://groups.google.com/forum/#!topic/urbit-dev/K7QpBge30JI
-        produces("[10 8 [1 1 1] 8 [1 0] 8 [1 6 [5 [0 15] 4 0 6] [0 28] 9 2 [0 2] [4 0 6] [[0 29] \
-                  7 [0 14] 8 [1 0] 8 [1 6 [5 [0 14] 0 6] [0 15] 9 2 [0 2] [4 0 6] [0 14] 4 0 15] \
-                  9 2 0 1] 0 15] 9 2 0 1]",
+        produces("[10 8 [1 1 1] 8 [1 0] 8 [1 6 [5 [0 15] 4 0 6] [0 28] 9 2 \
+                  [0 2] [4 0 6] [[0 29] 7 [0 14] 8 [1 0] 8 [1 6 [5 [0 14] 0 \
+                  6] [0 15] 9 2 [0 2] [4 0 6] [0 14] 4 0 15] 9 2 0 1] 0 15] \
+                  9 2 0 1]",
                  "55");
     }
 
@@ -867,45 +855,10 @@ mod tests {
         // Subtraction. Tests tail call elimination, will trash stack if it
         // doesn't work.
         b.iter(|| {
-            produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
+            produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] \
+                      [4 0 6] 0 7] 9 2 0 1]",
                      "9.999")
         })
     }
 
-    fn to_cord(n: Noun) -> Option<String> {
-        n.to_bytes().and_then(|b| String::from_utf8(b).ok())
-    }
-
-    #[test]
-    fn test_cord() {
-        assert_eq!(to_cord("0".parse::<Noun>().unwrap()), Some("".to_string()));
-        assert_eq!(to_cord("190".parse::<Noun>().unwrap()), None);
-        assert_eq!(to_cord("7303014".parse::<Noun>().unwrap()),
-                   Some("foo".to_string()));
-    }
-
-    #[test]
-    fn test_from_bytes() {
-        assert_eq!(Noun::from_bytes("".as_bytes()), Noun::Atom(0));
-        assert_eq!(to_cord(Noun::from_bytes("a".as_bytes())),
-                   Some("a".to_string()));
-        assert_eq!(to_cord(Noun::from_bytes("nock".as_bytes())),
-                   Some("nock".to_string()));
-        assert_eq!(Noun::from_bytes("nock".as_bytes()), Noun::Atom(1801678702));
-        assert_eq!(to_cord(Noun::from_bytes("antidisestablishmentarianism".as_bytes())),
-                   Some("antidisestablishmentarianism".to_string()));
-    }
-
-    fn hash<T: hash::Hash>(t: &T) -> u64 {
-        use std::hash::Hasher;
-        let mut s = hash::SipHasher::new();
-        t.hash(&mut s);
-        s.finish()
-    }
-
-    #[test]
-    fn test_fold() {
-        assert_eq!(hash(&n![1, 2, 3]), hash(&n![1, 2, 3]));
-        assert!(hash(&n![1, 2, 3]) != hash(&n![1, 2]));
-    }
 }
