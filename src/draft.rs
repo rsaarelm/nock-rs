@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::str;
+use std::fmt;
 use std::iter;
 use std::hash;
+use num::BigUint;
 use digit_slice::{DigitSlice, FromDigits};
 
 /// A wrapper for referencing Noun-like patterns.
@@ -18,10 +20,10 @@ pub enum Shape<A, N> {
 /// ordered pair of nouns.
 ///
 /// Atoms are represented by a little-endian byte array of 8-bit digits.
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Noun(Inner);
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 enum Inner {
     Atom(Rc<Vec<u8>>),
     Cell(Rc<Noun>, Rc<Noun>),
@@ -266,7 +268,6 @@ impl str::FromStr for Noun {
         /// Parse an atom, a positive integer.
         fn parse_atom<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>)
                                                 -> Result<Noun, ParseError> {
-            use num::BigUint;
             let mut buf = Vec::new();
 
             loop {
@@ -354,6 +355,52 @@ impl str::FromStr for Noun {
         }
     }
 }
+
+impl fmt::Display for Noun {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            Inner::Atom(ref n) => return dot_separators(f, &n),
+            Inner::Cell(ref a, ref b) => {
+                try!(write!(f, "[{} ", a));
+                // List pretty-printer.
+                let mut cur = b;
+                loop {
+                    match cur.0 {
+                        Inner::Cell(ref a, ref b) => {
+                            try!(write!(f, "{} ", a));
+                            cur = &b;
+                        }
+                        Inner::Atom(ref n) => {
+                            try!(dot_separators(f, &n));
+                            return write!(f, "]");
+                        }
+                    }
+                }
+            }
+        }
+
+        fn dot_separators(f: &mut fmt::Formatter,
+                          digits: &[u8])
+                          -> fmt::Result {
+            let s = format!("{}", BigUint::from_digits(digits).unwrap());
+            let phase = s.len() % 3;
+            for (i, c) in s.chars().enumerate() {
+                if i > 0 && i % 3 == phase {
+                    try!(write!(f, "."));
+                }
+                try!(write!(f, "{}", c));
+            }
+            Ok(())
+        }
+    }
+}
+
+impl fmt::Debug for Noun {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
