@@ -5,7 +5,7 @@ use std::fmt;
 use std::iter;
 use std::hash;
 use num::BigUint;
-use num::traits::One;
+use num::traits::{Zero, One, FromPrimitive};
 use digit_slice::{DigitSlice, FromDigits};
 
 /// A wrapper for referencing Noun-like patterns.
@@ -430,7 +430,37 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
 }
 
 fn axis(atom: &[u8], subject: &Noun) -> NockResult {
-    unimplemented!();
+    // TODO: Optimize for small atoms.
+    fn fas(x: BigUint, n: &Noun) -> NockResult {
+        let two = BigUint::from_u32(2).unwrap();
+        let three = BigUint::from_u32(3).unwrap();
+        if x == BigUint::zero() {
+            return Err(NockError);
+        }
+        if x == BigUint::one() {
+            return Ok(n.clone());
+        }
+        if let Shape::Cell(ref a, ref b) = n.get() {
+            if x == two {
+                return Ok((*a).clone());
+            } else if x == three {
+                return Ok((*b).clone());
+            } else {
+                let half = x.clone() >> 1;
+                let p = try!(fas(half, n));
+
+                if x % two.clone() == BigUint::zero() {
+                    fas(two, &p)
+                } else {
+                    fas(three, &p)
+                }
+            }
+        } else {
+            return Err(NockError);
+        }
+    }
+
+    fas(BigUint::from_digits(atom).unwrap(), subject)
 }
 
 
