@@ -277,6 +277,27 @@ impl<T, U> FromNoun for (T, U)
     }
 }
 
+impl FromNoun for String
+{
+    type Err = ();
+
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+        match n.get() {
+            Shape::Atom(bytes) => {
+                String::from_utf8(bytes.to_vec()).map_err(|_| ())
+            }
+            _ => Err(())
+        }
+    }
+}
+
+impl ToNoun for str
+{
+    fn to_noun(&self) -> Noun {
+        Noun::atom(self.as_bytes())
+    }
+}
+
 // TODO: FromNoun for T: FromIterator<U: FromNoun>. Pair impl should give us
 // a HashMap derivation then. Use ~-terminated cell sequence as backend.
 
@@ -285,8 +306,6 @@ impl<T, U> FromNoun for (T, U)
 // Return type is Option<Vec<&'a Noun>>?
 
 // TODO: ToNoun for T: IntoIterator<U: ToNoun>.
-
-// TODO: FromNoun/ToNoun for String, compatible with cord datatype.
 
 // TODO: FromNoun/ToNoun for signed numbers using the Urbit representation
 // convention.
@@ -456,10 +475,9 @@ impl fmt::Debug for Noun {
 #[cfg(test)]
 mod tests {
     use std::hash;
-    use super::Noun;
-    use super::Shape;
     use num::BigUint;
     use test::Bencher;
+    use super::{Noun, Shape, FromNoun, ToNoun};
 
     /// Macro for noun literals.
     ///
@@ -659,4 +677,17 @@ mod tests {
         })
     }
 
+    #[test]
+    fn test_cord() {
+        assert_eq!(String::from_noun(&Noun::from(0u32)), Ok("".to_string()));
+        assert_eq!(String::from_noun(&Noun::from(190u32)), Err(()));
+        assert_eq!(String::from_noun(&Noun::from(7303014u32)), Ok("foo".to_string()));
+        assert_eq!(String::from_noun(&"quux".to_noun()), Ok("quux".to_string()));
+        /*
+        assert_eq!(to_cord("0".parse::<Noun>().unwrap()), Some("".to_string()));
+        assert_eq!(to_cord("190".parse::<Noun>().unwrap()), None);
+        assert_eq!(to_cord("7303014".parse::<Noun>().unwrap()),
+                   Some("foo".to_string()));
+                   */
+    }
 }
