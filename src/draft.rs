@@ -46,22 +46,9 @@ impl Noun {
     /// expression being matched. 122 has the leftmost leaf 1 step away from
     /// the root and the two leaves on the right both 2 steps away from the
     /// root.
-    pub fn get_122<'a>(&'a self)
-         -> Option<(&'a Noun, &'a Noun, &'a Noun)> {
+    pub fn get_122<'a>(&'a self) -> Option<(&'a Noun, &'a Noun, &'a Noun)> {
         if let Shape::Cell(ref a, ref b) = self.get() {
             if let Shape::Cell(ref b, ref c) = b.get() {
-                return Some((a, b, c));
-            }
-        }
-        None
-    }
-
-    /// Pattern-match a noun with shape [[p q] r].
-    pub fn get_221<'a>
-        (&'a self)
-         -> Option<(&'a Noun, &'a Noun, &'a Noun)> {
-        if let Shape::Cell(ref a, ref c) = self.get() {
-            if let Shape::Cell(ref a, ref b) = a.get() {
                 return Some((a, b, c));
             }
         }
@@ -340,11 +327,11 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                         match p.get() {
                             Shape::Atom(ref x) => {
                                 if x == &0u32.as_digits() {
-                                formula = (*c).clone();
+                                    formula = (*c).clone();
                                 } else if x == &1u32.as_digits() {
-                                formula = (*d).clone();
+                                    formula = (*d).clone();
                                 } else {
-                                    return Err(NockError)
+                                    return Err(NockError);
                                 }
                             }
                             _ => return Err(NockError),
@@ -355,14 +342,14 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                     }
                 }
 
-                /*
-
                 // Compose
-                7 => {
-                    match *tail {
-                        Cell(ref b, ref c) => {
-                            let p = try!(tar(Cell(subject, b.clone())));
-                            noun = Cell(p, c.clone());
+                Some(7) => {
+                    match tail.get() {
+                        Shape::Cell(ref b, ref c) => {
+                            let p = try!(nock_on(subject.clone(),
+                                                 (*b).clone()));
+                            subject = p;
+                            formula = (*c).clone();
                             continue;
                         }
                         _ => return Err(NockError),
@@ -370,11 +357,13 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                 }
 
                 // Push
-                8 => {
-                    match *tail {
-                        Cell(ref b, ref c) => {
-                            let p = try!(tar(Cell(subject.clone(), b.clone())));
-                            noun = Cell(Rc::new(Cell(p, subject)), c.clone());
+                Some(8) => {
+                    match tail.get() {
+                        Shape::Cell(ref b, ref c) => {
+                            let p = try!(nock_on(subject.clone(),
+                                                 (*b).clone()));
+                            subject = Noun::cell(p, subject);
+                            formula = (*c).clone();
                             continue;
                         }
                         _ => return Err(NockError),
@@ -382,14 +371,15 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                 }
 
                 // Call
-                9 => {
-                    match *tail {
-                        Cell(ref b, ref c) => {
-                            let p = try!(tar(Cell(subject.clone(), c.clone())));
-                            let q = try!(tar(Cell(p.clone(),
-                                                  Rc::new(Cell(Rc::new(Atom(0)),
-                                                               b.clone())))));
-                            noun = Cell(p, q);
+                Some(9) => {
+                    match tail.get() {
+                        Shape::Cell(ref b, ref c) => {
+                            subject = try!(nock_on(subject.clone(),
+                                                   (*c).clone()));
+                            formula =
+                                try!(nock_on(subject.clone(),
+                                             Noun::cell(Noun::from(0u32),
+                                                        (*b).clone())));
                             continue;
                         }
                         _ => return Err(NockError),
@@ -397,19 +387,25 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                 }
 
                 // Hint
-                10 => {
-                    match *tail {
-                        Cell(ref _b, ref c) => {
+                Some(10) => {
+                    match tail.get() {
+                        Shape::Cell(ref _b, ref c) => {
                             // Throw away b.
-                            // XXX: Should check if b is a cell and fail if it
-                            // would crash.
-                            noun = Cell(subject, c.clone());
+
+                            // TODO: Check if b is a cell and fail if it would
+                            // crash.
+                            formula = (*c).clone();
                             continue;
                         }
                         _ => return Err(NockError),
                     }
                 }
-                */
+
+                // Unhandled opcode
+                Some(x) => {
+                    return Err(NockError);
+                }
+
                 None => {
                     if let Shape::Cell(_, _) = ops.get() {
                         // Autocons
@@ -420,8 +416,6 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                         return Err(NockError);
                     }
                 }
-
-                _ => return Err(NockError),
             }
         } else {
             return Err(NockError);
@@ -646,7 +640,7 @@ mod tests {
             }
         };
         assert_eq!(format!("{}", nock_on(s, f).ok().expect("Eval failed")),
-        output);
+                   output);
     }
 
     #[test]
@@ -712,8 +706,8 @@ mod tests {
         produces("[[[97 2] [1 42 0]] 0 7]", "[42 0]");
 
         // Bignum axis.
-        produces("[[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 \
-                  29 30 31 32 33] 0 8589934591]",
+        produces("[[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 \
+                  23 24 25 26 27 28 29 30 31 32 33] 0 8589934591]",
                  "33");
     }
 
@@ -789,9 +783,10 @@ mod tests {
 
         // Fibonacci numbers,
         // https://groups.google.com/forum/#!topic/urbit-dev/K7QpBge30JI
-        produces("[10 8 [1 1 1] 8 [1 0] 8 [1 6 [5 [0 15] 4 0 6] [0 28] 9 2 [0 2] [4 0 6] [[0 29] \
-                  7 [0 14] 8 [1 0] 8 [1 6 [5 [0 14] 0 6] [0 15] 9 2 [0 2] [4 0 6] [0 14] 4 0 15] \
-                  9 2 0 1] 0 15] 9 2 0 1]",
+        produces("[10 8 [1 1 1] 8 [1 0] 8 [1 6 [5 [0 15] 4 0 6] [0 28] 9 2 \
+                  [0 2] [4 0 6] [[0 29] 7 [0 14] 8 [1 0] 8 [1 6 [5 [0 14] 0 \
+                  6] [0 15] 9 2 [0 2] [4 0 6] [0 14] 4 0 15] 9 2 0 1] 0 15] \
+                  9 2 0 1]",
                  "55");
     }
 
@@ -800,7 +795,8 @@ mod tests {
         // Subtraction. Tests tail call elimination, will trash stack if it
         // doesn't work.
         b.iter(|| {
-            produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
+            produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] \
+                      [4 0 6] 0 7] 9 2 0 1]",
                      "9.999")
         })
     }
