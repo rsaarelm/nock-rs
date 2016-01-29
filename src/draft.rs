@@ -262,26 +262,48 @@ pub struct NockError;
 pub type NockResult = Result<Noun, NockError>;
 
 /// Evaluate the nock `*[subject formula]`
-pub fn nock_on(subject: &Noun, formula: &Noun) -> NockResult {
+pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
     use std::u32;
 
     loop {
-        if let Shape::Cell(ops, tail) = formula.get() {
+        if let Shape::Cell(ops, tail) = formula.clone().get() {
             match ops.as_u32() {
                 // Axis
                 Some(0) => {
                     match tail.get() {
-                        Shape::Atom(ref x) => return axis(x, subject),
+                        Shape::Atom(ref x) => return axis(x, &subject),
                         _ => return Err(NockError),
                     }
                 }
                 // Just
                 Some(1) => return Ok(tail.clone()),
+                // Fire
+                Some(2) => {
+                    match tail.get() {
+                        Shape::Cell(ref b, ref c) => {
+                            let p = try!(nock_on(subject.clone(),
+                                                 (*b).clone()));
+                            let q = try!(nock_on(subject, (*c).clone()));
+                            subject = p;
+                            formula = q;
+                            continue;
+                        }
+                        _ => return Err(NockError),
+                    }
+                }
+                // Depth
+                Some(3) => {
+                    let p = try!(nock_on(subject.clone(), (*tail).clone()));
+                    return match p.get() {
+                        Shape::Cell(_, _) => Ok(Noun::from(0u32)),
+                        _ => Ok(Noun::from(1u32)),
+                    };
+                }
                 None => {
                     if let Shape::Cell(n, tail) = ops.get() {
                         // Autocons
-                        let a = try!(nock_on(subject, n));
-                        let b = try!(nock_on(subject, tail));
+                        let a = try!(nock_on(subject.clone(), n.clone()));
+                        let b = try!(nock_on(subject, tail.clone()));
                         return Ok(Noun::cell(a, b));
                     } else {
                         return Err(NockError);
