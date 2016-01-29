@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate nock;
 
 use std::default::Default;

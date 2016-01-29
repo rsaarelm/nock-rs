@@ -92,7 +92,7 @@ enum Inner {
 pub type NounShape<'a> = Shape<&'a [u8], &'a Noun>;
 
 impl Noun {
-    fn get<'a>(&'a self) -> NounShape<'a> {
+    pub fn get<'a>(&'a self) -> NounShape<'a> {
         match self.0 {
             Inner::Atom(ref v) => Shape::Atom(&v),
             Inner::Cell(ref a, ref b) => Shape::Cell(&*a, &*b),
@@ -115,7 +115,7 @@ impl Noun {
     }
 
     /// Memory address or other unique identifier for the noun.
-    fn addr(&self) -> usize {
+    pub fn addr(&self) -> usize {
         &*self as *const _ as usize
     }
 
@@ -147,7 +147,7 @@ impl Noun {
     }
 
     /// Run a memoizing fold over the noun
-    fn fold<'a, F, T>(&'a self, mut f: F) -> T
+    pub fn fold<'a, F, T>(&'a self, mut f: F) -> T
         where F: FnMut(Shape<&'a [u8], T>) -> T,
               T: Clone
     {
