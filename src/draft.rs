@@ -88,6 +88,17 @@ impl Noun {
         item.to_noun()
     }
 
+    /// Match noun if it's an atom that's a small integer.
+    ///
+    /// Will not match atoms that are larger than 2^32, but is not guaranteed
+    /// to match atoms that are smaller than 2^32 but not by much.
+    pub fn as_u32(&self) -> Option<u32> {
+        if let &Noun(Inner::Atom(ref digits)) = self {
+            u32::from_digits(digits).ok()
+        } else {
+            None
+        }
+    }
 
     /// Run a memoizing fold over the noun
     fn fold<'a, F, T>(&'a self, mut f: F) -> T
