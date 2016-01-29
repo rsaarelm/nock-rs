@@ -594,10 +594,28 @@ impl fmt::Debug for Noun {
 mod tests {
     use std::hash;
     use super::Noun;
+    use super::Shape;
     use num::BigUint;
 
     fn parses(input: &str, output: Noun) {
         assert_eq!(input.parse::<Noun>().ok().expect("Parsing failed"), output);
+    }
+
+    fn produces(input: &str, output: &str) {
+        use super::nock_on;
+
+        let (s, f) = match input.parse::<Noun>() {
+            Err(_) => panic!("Parsing failed"),
+            Ok(x) => {
+                if let Shape::Cell(ref s, ref f) = x.get() {
+                    ((*s).clone(), (*f).clone())
+                } else {
+                    panic!("Unnockable input")
+                }
+            }
+        };
+        assert_eq!(format!("{}", nock_on(s, f).ok().expect("Eval failed")),
+        output);
     }
 
     #[test]
@@ -648,5 +666,10 @@ mod tests {
         parses("[1 2 3]", n![1, 2, 3]);
         parses("[1 [2 3]]", n![1, 2, 3]);
         parses("[[1 2] 3]", n![n![1, 2], 3]);
+    }
+
+    #[test]
+    fn test_autocons() {
+        produces("[42 [4 0 1] [3 0 1]]", "[43 1]");
     }
 }
