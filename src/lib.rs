@@ -49,6 +49,7 @@
 #![crate_name="nock"]
 
 #![feature(test)]
+extern crate bit_vec;
 extern crate test;
 extern crate num;
 
@@ -63,9 +64,11 @@ use num::BigUint;
 use digit_slice::{DigitSlice, FromDigits};
 
 pub use nock::nock_on;
+pub use cue::unpack_pill;
 
 mod digit_slice;
 mod nock;
+mod cue;
 
 /// A wrapper for referencing Noun-like patterns.
 #[derive(Copy, Clone)]
