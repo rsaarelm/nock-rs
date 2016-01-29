@@ -45,12 +45,11 @@ impl Noun {
     /// expression being matched. 122 has the leftmost leaf 1 step away from
     /// the root and the two leaves on the right both 2 steps away from the
     /// root.
-    pub fn get_122<'a>
-        (&'a self)
-         -> Option<(NounShape<'a>, NounShape<'a>, NounShape<'a>)> {
+    pub fn get_122<'a>(&'a self)
+         -> Option<(&'a Noun, &'a Noun, &'a Noun)> {
         if let Shape::Cell(ref a, ref b) = self.get() {
             if let Shape::Cell(ref b, ref c) = b.get() {
-                return Some((a.get(), b.get(), c.get()));
+                return Some((a, b, c));
             }
         }
         None
@@ -59,10 +58,10 @@ impl Noun {
     /// Pattern-match a noun with shape [[p q] r].
     pub fn get_221<'a>
         (&'a self)
-         -> Option<(NounShape<'a>, NounShape<'a>, NounShape<'a>)> {
+         -> Option<(&'a Noun, &'a Noun, &'a Noun)> {
         if let Shape::Cell(ref a, ref c) = self.get() {
             if let Shape::Cell(ref a, ref b) = a.get() {
-                return Some((a.get(), b.get(), c.get()));
+                return Some((a, b, c));
             }
         }
         None
