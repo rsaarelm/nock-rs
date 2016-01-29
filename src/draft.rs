@@ -299,6 +299,104 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                         _ => Ok(Noun::from(1u32)),
                     };
                 }
+                /*
+                // Bump
+                4 => {
+                    let p = try!(tar(Cell(subject, tail)));
+                    return match *p {
+                        // Switch to BigAtoms at regular atom size limit.
+                        Atom(u32::MAX) => {
+                            Ok(Rc::new(BigAtom(BigUint::from_u32(u32::MAX).unwrap() +
+                                               BigUint::one())))
+                        }
+                        Atom(ref x) => Ok(Rc::new(Atom(x + 1))),
+                        BigAtom(ref x) => Ok(Rc::new(BigAtom(x + BigUint::one()))),
+                        _ => Err(NockError),
+                    };
+                }
+                // Same
+                5 => {
+                    let p = try!(tar(Cell(subject, tail)));
+                    return match *p {
+                        Cell(ref a, ref b) => {
+                            if a == b {
+                                return Ok(Rc::new(Atom(0)));
+                            } else {
+                                return Ok(Rc::new(Atom(1)));
+                            }
+                        }
+                        _ => return Err(NockError),
+                    };
+                }
+
+                // If
+                6 => {
+                    if let Some((b, c, d)) = tail.as_triple() {
+                        let p = try!(tar(Cell(subject.clone(), b)));
+                        match *p {
+                            Atom(0) => noun = Cell(subject, c),
+                            Atom(1) => noun = Cell(subject, d),
+                            _ => return Err(NockError),
+                        }
+                        continue;
+                    } else {
+                        return Err(NockError);
+                    }
+                }
+
+                // Compose
+                7 => {
+                    match *tail {
+                        Cell(ref b, ref c) => {
+                            let p = try!(tar(Cell(subject, b.clone())));
+                            noun = Cell(p, c.clone());
+                            continue;
+                        }
+                        _ => return Err(NockError),
+                    }
+                }
+
+                // Push
+                8 => {
+                    match *tail {
+                        Cell(ref b, ref c) => {
+                            let p = try!(tar(Cell(subject.clone(), b.clone())));
+                            noun = Cell(Rc::new(Cell(p, subject)), c.clone());
+                            continue;
+                        }
+                        _ => return Err(NockError),
+                    }
+                }
+
+                // Call
+                9 => {
+                    match *tail {
+                        Cell(ref b, ref c) => {
+                            let p = try!(tar(Cell(subject.clone(), c.clone())));
+                            let q = try!(tar(Cell(p.clone(),
+                                                  Rc::new(Cell(Rc::new(Atom(0)),
+                                                               b.clone())))));
+                            noun = Cell(p, q);
+                            continue;
+                        }
+                        _ => return Err(NockError),
+                    }
+                }
+
+                // Hint
+                10 => {
+                    match *tail {
+                        Cell(ref _b, ref c) => {
+                            // Throw away b.
+                            // XXX: Should check if b is a cell and fail if it
+                            // would crash.
+                            noun = Cell(subject, c.clone());
+                            continue;
+                        }
+                        _ => return Err(NockError),
+                    }
+                }
+                */
                 None => {
                     if let Shape::Cell(n, tail) = ops.get() {
                         // Autocons
