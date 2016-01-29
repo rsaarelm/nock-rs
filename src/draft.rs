@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::str;
+use std::iter;
 use std::hash;
 use digit_slice::{DigitSlice, FromDigits};
 
@@ -16,10 +18,10 @@ pub enum Shape<A, N> {
 /// ordered pair of nouns.
 ///
 /// Atoms are represented by a little-endian byte array of 8-bit digits.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Noun(Inner);
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 enum Inner {
     Atom(Rc<Vec<u8>>),
     Cell(Rc<Noun>, Rc<Noun>),
@@ -41,7 +43,9 @@ impl Noun {
     /// expression being matched. 122 has the leftmost leaf 1 step away from
     /// the root and the two leaves on the right both 2 steps away from the
     /// root.
-    pub fn get_122<'a>(&'a self) -> Option<(NounShape<'a>, NounShape<'a>, NounShape<'a>)> {
+    pub fn get_122<'a>
+        (&'a self)
+         -> Option<(NounShape<'a>, NounShape<'a>, NounShape<'a>)> {
         if let Shape::Cell(ref a, ref b) = self.get() {
             if let Shape::Cell(ref b, ref c) = b.get() {
                 return Some((a.get(), b.get(), c.get()));
@@ -51,7 +55,9 @@ impl Noun {
     }
 
     /// Pattern-match a noun with shape [[p q] r].
-    pub fn get_221<'a>(&'a self) -> Option<(NounShape<'a>, NounShape<'a>, NounShape<'a>)> {
+    pub fn get_221<'a>
+        (&'a self)
+         -> Option<(NounShape<'a>, NounShape<'a>, NounShape<'a>)> {
         if let Shape::Cell(ref a, ref c) = self.get() {
             if let Shape::Cell(ref a, ref b) = a.get() {
                 return Some((a.get(), b.get(), c.get()));
@@ -114,7 +120,6 @@ impl Noun {
 
         h(self, &mut HashMap::new(), &mut f)
     }
-
 }
 
 impl hash::Hash for Noun {
@@ -133,6 +138,23 @@ impl hash::Hash for Noun {
             .hash(state);
     }
 }
+
+impl iter::FromIterator<Noun> for Noun {
+    fn from_iter<T>(iterator: T) -> Self
+        where T: IntoIterator<Item = Noun>
+    {
+        let mut v: Vec<Noun> = iterator.into_iter().collect();
+        v.reverse();
+
+        v.into_iter()
+         .fold(None, move |acc, i| {
+             acc.map_or_else(|| Some(i.clone()),
+                             |a| Some(Noun::cell(i.clone(), a)))
+         })
+         .expect("Can't make noun from empty list")
+    }
+}
+
 
 
 /// Trait for types that can convert themselves to a noun.
@@ -157,18 +179,22 @@ pub trait FromNoun: Sized {
     fn from_noun(n: &Noun) -> Result<Self, Self::Err>;
 }
 
-impl<T> FromNoun for T where T: FromDigits {
+impl<T> FromNoun for T where T: FromDigits
+{
     type Err = ();
 
     fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
         match n.get() {
             Shape::Atom(x) => T::from_digits(x).map_err(|_| ()),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
 
-impl<T, U> FromNoun for (T, U) where T: FromNoun, U: FromNoun {
+impl<T, U> FromNoun for (T, U)
+    where T: FromNoun,
+          U: FromNoun
+{
     type Err = ();
 
     fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
@@ -178,7 +204,7 @@ impl<T, U> FromNoun for (T, U) where T: FromNoun, U: FromNoun {
                 let u = try!(U::from_noun(b).map_err(|_| ()));
                 Ok((t, u))
             }
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -217,10 +243,127 @@ macro_rules! n {
     [$x:expr, $y:expr, $($ys:expr),+] => { $crate::draft::Noun::cell($x.into(), n![$y, $($ys),+]) };
 }
 
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct ParseError;
+
+impl str::FromStr for Noun {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, ParseError> {
+        return parse(&mut s.chars().peekable());
+
+        fn parse<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>)
+                                           -> Result<Noun, ParseError> {
+            eat_space(input);
+            match input.peek().map(|&x| x) {
+                Some(c) if c.is_digit(10) => parse_atom(input),
+                Some(c) if c == '[' => parse_cell(input),
+                _ => Err(ParseError),
+            }
+        }
+
+        /// Parse an atom, a positive integer.
+        fn parse_atom<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>)
+                                                -> Result<Noun, ParseError> {
+            use num::BigUint;
+            let mut buf = Vec::new();
+
+            loop {
+                if let Some(&c) = input.peek() {
+                    if c.is_digit(10) {
+                        input.next();
+                        buf.push(c);
+                    } else if c == '.' {
+                        // Dot is used as a sequence separator (*not* as
+                        // decimal point). It can show up anywhere in the
+                        // digit sequence and will be ignored.
+                        input.next();
+                    } else if c == '[' || c == ']' || c.is_whitespace() {
+                        // Whitespace or cell brackets can terminate the
+                        // digit sequence.
+                        break;
+                    } else {
+                        // Anything else in the middle of the digit sequence
+                        // is an error.
+                        return Err(ParseError);
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            if buf.len() == 0 {
+                return Err(ParseError);
+            }
+
+            let num: BigUint = buf.into_iter()
+                                  .collect::<String>()
+                                  .parse()
+                                  .expect("Failed to parse atom");
+
+            Ok(Noun::from(num))
+        }
+
+        /// Parse a cell, a bracketed pair of nouns.
+        ///
+        /// For additional complication, cells can have the form [a b c] which
+        /// parses to [a [b c]].
+        fn parse_cell<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>)
+                                                -> Result<Noun, ParseError> {
+            let mut elts = Vec::new();
+
+            if input.next() != Some('[') {
+                panic!("Bad cell start");
+            }
+
+            // A cell must have at least two nouns in it.
+            elts.push(try!(parse(input)));
+            elts.push(try!(parse(input)));
+
+            // It can have further trailing nouns.
+            loop {
+                eat_space(input);
+                match input.peek().map(|&x| x) {
+                    Some(c) if c.is_digit(10) => {
+                        elts.push(try!(parse_atom(input)))
+                    }
+                    Some(c) if c == '[' => elts.push(try!(parse_cell(input))),
+                    Some(c) if c == ']' => {
+                        input.next();
+                        break;
+                    }
+                    _ => return Err(ParseError),
+                }
+            }
+
+
+
+            Ok(elts.into_iter().collect())
+        }
+
+        fn eat_space<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>) {
+            loop {
+                match input.peek().map(|&x| x) {
+                    Some(c) if c.is_whitespace() => {
+                        input.next();
+                    }
+                    _ => return,
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::hash;
     use super::Noun;
+    use num::BigUint;
+
+    fn parses(input: &str, output: Noun) {
+        assert_eq!(input.parse::<Noun>().ok().expect("Parsing failed"), output);
+    }
 
     #[test]
     fn scratch() {
@@ -240,5 +383,35 @@ mod tests {
         assert_eq!(hash(&n![1, 2, 3]), hash(&n![1, 2, 3]));
         assert!(hash(&n![n![1, 2], 3]) != hash(&n![1, 2, 3]));
         assert!(hash(&n![1, 2, 3]) != hash(&n![1, 2]));
+    }
+
+    #[test]
+    fn test_parser() {
+        use num::traits::Num;
+
+        assert!("".parse::<Noun>().is_err());
+        assert!("12ab".parse::<Noun>().is_err());
+        assert!("[]".parse::<Noun>().is_err());
+        assert!("[1]".parse::<Noun>().is_err());
+
+        parses("0", Noun::from(0u32));
+        parses("1", Noun::from(1u32));
+        parses("1.000.000", Noun::from(1_000_000u32));
+
+        parses("4294967295", Noun::from(4294967295u32));
+        parses("4294967296", Noun::from(4294967296u64));
+
+        parses("999.999.999.999.999.999.999.999.999.999.999.999.999.999.999.\
+                999.999.999.999.999",
+               Noun::from(BigUint::from_str_radix("999999999999999999999999\
+                                                   999999999999999999999999\
+                                                   999999999999",
+                                                  10)
+                              .unwrap()));
+
+        parses("[1 2]", n![1, 2]);
+        parses("[1 2 3]", n![1, 2, 3]);
+        parses("[1 [2 3]]", n![1, 2, 3]);
+        parses("[[1 2] 3]", n![n![1, 2], 3]);
     }
 }
