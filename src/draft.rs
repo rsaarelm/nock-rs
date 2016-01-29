@@ -596,6 +596,7 @@ mod tests {
     use super::Noun;
     use super::Shape;
     use num::BigUint;
+    use test::Bencher;
 
     fn parses(input: &str, output: Noun) {
         assert_eq!(input.parse::<Noun>().ok().expect("Parsing failed"), output);
@@ -672,4 +673,106 @@ mod tests {
     fn test_autocons() {
         produces("[42 [4 0 1] [3 0 1]]", "[43 1]");
     }
+
+    #[test]
+    fn test_axis() {
+        // Operator 0: Axis
+        produces("[[19 42] [0 3] 0 2]", "[42 19]");
+        produces("[[19 42] 0 3]", "42");
+        produces("[[[97 2] [1 42 0]] 0 7]", "[42 0]");
+
+        // Bignum axis.
+        produces("[[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 \
+                  29 30 31 32 33] 0 8589934591]",
+                 "33");
+    }
+
+    #[test]
+    fn test_just() {
+        // Operator 1: Just
+        produces("[42 1 57]", "57");
+    }
+
+    #[test]
+    fn test_fire() {
+        // Operator 2: Fire
+        produces("[[[40 43] [4 0 1]] [2 [0 4] [0 3]]]", "41");
+        produces("[[[40 43] [4 0 1]] [2 [0 5] [0 3]]]", "44");
+        produces("[77 [2 [1 42] [1 1 153 218]]]", "[153 218]");
+    }
+
+    #[test]
+    fn test_depth() {
+        // Operator 3: Depth
+        produces("[1 3 0 1]", "1");
+        produces("[[2 3] 3 0 1]", "0");
+    }
+
+    #[test]
+    fn test_bump() {
+        // Operator 4: Bump
+        produces("[57 4 0 1]", "58");
+    }
+
+    #[test]
+    fn test_bigint() {
+        // 32-bit limit, bump up needs bignums if atom is u32
+        produces("[4294967295 4 0 1]", "4.294.967.296");
+        // 64-bit limit, bump up needs bignums if atom is u64
+        produces("[18446744073709551615 4 0 1]", "18.446.744.073.709.551.616");
+        // Bignum-to-bignum bump works, even if base atoms are 64-bit.
+        produces("[18446744073709551616 4 0 1]", "18.446.744.073.709.551.617");
+    }
+
+    #[test]
+    fn test_same() {
+        // Operator 5: Same
+        produces("[[1 1] 5 0 1]", "0");
+        produces("[[1 2] 5 0 1]", "1");
+        // Various bignum combinations.
+        produces("[[18446744073709551615 18446744073709551615] 5 0 1]", "0");
+        produces("[[18446744073709551615 18446744073709551616] 5 0 1]", "1");
+        produces("[[18446744073709551615 2] 5 0 1]", "1");
+        produces("[[2 18446744073709551615] 5 0 1]", "1");
+    }
+
+    #[test]
+    fn test_if() {
+        // Operator 6: If
+        produces("[[40 43] 6 [3 0 1] [4 0 2] [4 0 1]]", "41");
+        produces("[42 6 [1 0] [4 0 1] 1 233]", "43");
+        produces("[42 6 [1 1] [4 0 1] 1 233]", "233");
+    }
+
+    #[test]
+    fn test_misc_nock() {
+        // Operator 7: Compose
+        produces("[[42 44] [7 [4 0 3] [3 0 1]]]", "1");
+
+        // Operator 8: Push
+
+        // Operator 9: Call
+
+        // Operator 10: Hint
+
+        produces("[[132 19] [10 37 [4 0 3]]]", "20");
+
+        // Fibonacci numbers,
+        // https://groups.google.com/forum/#!topic/urbit-dev/K7QpBge30JI
+        produces("[10 8 [1 1 1] 8 [1 0] 8 [1 6 [5 [0 15] 4 0 6] [0 28] 9 2 [0 2] [4 0 6] [[0 29] \
+                  7 [0 14] 8 [1 0] 8 [1 6 [5 [0 14] 0 6] [0 15] 9 2 [0 2] [4 0 6] [0 14] 4 0 15] \
+                  9 2 0 1] 0 15] 9 2 0 1]",
+                 "55");
+    }
+
+    #[bench]
+    fn test_stack(b: &mut Bencher) {
+        // Subtraction. Tests tail call elimination, will trash stack if it
+        // doesn't work.
+        b.iter(|| {
+            produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] [4 0 6] 0 7] 9 2 0 1]",
+                     "9.999")
+        })
+    }
+
 }
