@@ -141,10 +141,10 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                 // Hint
                 Some(10) => {
                     match tail.get() {
-                        Shape::Cell(ref _b, ref c) => {
-                            // Throw away b.
+                        Shape::Cell(ref hint, ref c) => {
+                            // Throw away hint.
 
-                            // TODO: Check if b is a cell and fail if it would
+                            // TODO: Check if hint is a cell and fail if it would
                             // crash.
                             formula = (*c).clone();
                             continue;
