@@ -5,6 +5,7 @@ use std::fmt;
 use std::iter;
 use std::hash;
 use num::BigUint;
+use num::traits::One;
 use digit_slice::{DigitSlice, FromDigits};
 
 /// A wrapper for referencing Noun-like patterns.
@@ -274,8 +275,10 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                         _ => return Err(NockError),
                     }
                 }
+
                 // Just
                 Some(1) => return Ok(tail.clone()),
+
                 // Fire
                 Some(2) => {
                     match tail.get() {
@@ -290,6 +293,7 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                         _ => return Err(NockError),
                     }
                 }
+
                 // Depth
                 Some(3) => {
                     let p = try!(nock_on(subject.clone(), (*tail).clone()));
@@ -298,30 +302,31 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                         _ => Ok(Noun::from(1u32)),
                     };
                 }
-                /*
+
                 // Bump
-                4 => {
-                    let p = try!(tar(Cell(subject, tail)));
-                    return match *p {
-                        // Switch to BigAtoms at regular atom size limit.
-                        Atom(u32::MAX) => {
-                            Ok(Rc::new(BigAtom(BigUint::from_u32(u32::MAX).unwrap() +
-                                               BigUint::one())))
+                Some(4) => {
+                    let p = try!(nock_on(subject.clone(), (*tail).clone()));
+                    return match p.get() {
+                        Shape::Atom(ref x) => {
+                            // TODO: Non-bignum optimization
+                            Ok(Noun::from(BigUint::from_digits(x).unwrap() +
+                                          BigUint::one()))
                         }
-                        Atom(ref x) => Ok(Rc::new(Atom(x + 1))),
-                        BigAtom(ref x) => Ok(Rc::new(BigAtom(x + BigUint::one()))),
                         _ => Err(NockError),
                     };
                 }
+
                 // Same
-                5 => {
-                    let p = try!(tar(Cell(subject, tail)));
-                    return match *p {
-                        Cell(ref a, ref b) => {
+                Some(5) => {
+                    let p = try!(nock_on(subject.clone(), (*tail).clone()));
+                    return match p.get() {
+                        Shape::Cell(ref a, ref b) => {
                             if a == b {
-                                return Ok(Rc::new(Atom(0)));
+                                // Yes.
+                                return Ok(Noun::from(0u32));
                             } else {
-                                return Ok(Rc::new(Atom(1)));
+                                // No.
+                                return Ok(Noun::from(1u32));
                             }
                         }
                         _ => return Err(NockError),
@@ -329,12 +334,19 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                 }
 
                 // If
-                6 => {
-                    if let Some((b, c, d)) = tail.as_triple() {
-                        let p = try!(tar(Cell(subject.clone(), b)));
-                        match *p {
-                            Atom(0) => noun = Cell(subject, c),
-                            Atom(1) => noun = Cell(subject, d),
+                Some(6) => {
+                    if let Some((b, c, d)) = tail.get_122() {
+                        let p = try!(nock_on(subject.clone(), (*b).clone()));
+                        match p.get() {
+                            Shape::Atom(ref x) => {
+                                if x == &0u32.as_digits() {
+                                formula = (*c).clone();
+                                } else if x == &1u32.as_digits() {
+                                formula = (*d).clone();
+                                } else {
+                                    return Err(NockError)
+                                }
+                            }
                             _ => return Err(NockError),
                         }
                         continue;
@@ -342,6 +354,8 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                         return Err(NockError);
                     }
                 }
+
+                /*
 
                 // Compose
                 7 => {
