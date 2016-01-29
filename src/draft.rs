@@ -256,6 +256,50 @@ macro_rules! n {
     [$x:expr, $y:expr, $($ys:expr),+] => { $crate::draft::Noun::cell($x.into(), n![$y, $($ys),+]) };
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct NockError;
+
+pub type NockResult = Result<Noun, NockError>;
+
+/// Evaluate the nock `*[subject formula]`
+pub fn nock_on(subject: &Noun, formula: &Noun) -> NockResult {
+    use std::u32;
+
+    loop {
+        if let Shape::Cell(ops, tail) = formula.get() {
+            match ops.as_u32() {
+                // Axis
+                Some(0) => {
+                    match tail.get() {
+                        Shape::Atom(ref x) => return axis(x, subject),
+                        _ => return Err(NockError),
+                    }
+                }
+                // Just
+                Some(1) => return Ok(tail.clone()),
+                None => {
+                    if let Shape::Cell(n, tail) = ops.get() {
+                        // Autocons
+                        let a = try!(nock_on(subject, n));
+                        let b = try!(nock_on(subject, tail));
+                        return Ok(Noun::cell(a, b));
+                    } else {
+                        return Err(NockError);
+                    }
+                }
+
+                _ => return Err(NockError),
+            }
+        } else {
+            return Err(NockError);
+        }
+    }
+}
+
+fn axis(atom: &[u8], subject: &Noun) -> NockResult {
+    unimplemented!();
+}
+
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct ParseError;
