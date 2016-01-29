@@ -411,9 +411,9 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                 }
                 */
                 None => {
-                    if let Shape::Cell(n, tail) = ops.get() {
+                    if let Shape::Cell(_, _) = ops.get() {
                         // Autocons
-                        let a = try!(nock_on(subject.clone(), n.clone()));
+                        let a = try!(nock_on(subject.clone(), ops.clone()));
                         let b = try!(nock_on(subject, tail.clone()));
                         return Ok(Noun::cell(a, b));
                     } else {
