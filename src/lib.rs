@@ -234,6 +234,34 @@ pub fn hash(noun: &Noun) -> u64 {
     fnv.finish()
 }
 
+/// A human-readable hash version.
+pub fn symhash(noun: &Noun) -> String {
+    fn proquint(buf: &mut String, mut b: u16) {
+        const C: [char; 16] = ['b', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n', 'p', 'r', 's', 't', 'v', 'z'];
+        const V: [char; 4] = ['a', 'i', 'o', 'u'];
+        buf.push(C[(b % 16) as usize]);
+        b >>= 4;
+        buf.push(V[(b % 4) as usize]);
+        b >>= 2;
+        buf.push(C[(b % 16) as usize]);
+        b >>= 4;
+        buf.push(V[(b % 4) as usize]);
+        b >>= 2;
+        buf.push(C[(b % 16) as usize]);
+    }
+
+    let mut hash = hash(noun);
+    let mut ret = String::new();
+    for _ in 0..3 {
+        proquint(&mut ret, (hash % 0xFFFF) as u16);
+        hash >>= 16;
+        ret.push('-')
+    }
+    proquint(&mut ret, (hash % 0xFFFF) as u16);
+
+    ret
+}
+
 
 /// Trait for types that can convert themselves to a noun.
 pub trait ToNoun {
