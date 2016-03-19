@@ -485,7 +485,7 @@ mod tests {
     macro_rules! n {
     [$x:expr, $y:expr] => { super::Noun::cell($x.into(), $y.into()) };
     [$x:expr, $y:expr, $($ys:expr),+] => { super::Noun::cell($x.into(), n![$y, $($ys),+]) };
-}
+    }
 
     // Into-conversion is only used so that we can put untyped numeric literals in
     // the noun-constructing macro and have them typed as unsigned. If the noun
@@ -683,11 +683,5 @@ mod tests {
         assert_eq!(String::from_noun(&Noun::from(190u32)), Err(()));
         assert_eq!(String::from_noun(&Noun::from(7303014u32)), Ok("foo".to_string()));
         assert_eq!(String::from_noun(&"quux".to_noun()), Ok("quux".to_string()));
-        /*
-        assert_eq!(to_cord("0".parse::<Noun>().unwrap()), Some("".to_string()));
-        assert_eq!(to_cord("190".parse::<Noun>().unwrap()), None);
-        assert_eq!(to_cord("7303014".parse::<Noun>().unwrap()),
-                   Some("foo".to_string()));
-                   */
     }
 }
