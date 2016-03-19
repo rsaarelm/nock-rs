@@ -9,12 +9,7 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
         if let Shape::Cell(ops, tail) = formula.clone().get() {
             match ops.as_u32() {
                 // Axis
-                Some(0) => {
-                    match tail.get() {
-                        Shape::Atom(ref x) => return axis(x, &subject),
-                        _ => return Err(NockError),
-                    }
-                }
+                Some(0) => return axis(&tail, &subject),
 
                 // Just
                 Some(1) => return Ok(tail.clone()),
@@ -175,7 +170,7 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
     }
 }
 
-fn axis(atom: &[u8], subject: &Noun) -> NockResult {
+fn axis(a: &Noun, subject: &Noun) -> NockResult {
     // TODO: Optimize for small atoms.
     fn fas(x: BigUint, n: &Noun) -> NockResult {
         let two = BigUint::from_u32(2).unwrap();
@@ -206,5 +201,8 @@ fn axis(atom: &[u8], subject: &Noun) -> NockResult {
         }
     }
 
-    fas(BigUint::from_digits(atom).unwrap(), subject)
+    match a.get() {
+        Shape::Atom(ref x) => fas(BigUint::from_digits(x).unwrap(), subject),
+        _ => Err(NockError)
+    }
 }
