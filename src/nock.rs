@@ -1,7 +1,7 @@
 use num::BigUint;
 use num::traits::{Zero, One, FromPrimitive};
 use digit_slice::{DigitSlice, FromDigits};
-use {Shape, Noun, NockError, NockResult};
+use {Shape, Noun, NockError, NockResult, FromNoun};
 
 /// Evaluate the nock `*[subject formula]`
 pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
@@ -137,10 +137,25 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                 Some(10) => {
                     match tail.get() {
                         Shape::Cell(ref hint, ref c) => {
-                            // Throw away hint.
+                            let (id, clue) = match hint.get() {
+                                Shape::Cell(ref p, ref q) => {
+                                    (p.clone(), try!(nock_on(subject.clone(), (*q).clone())))
+                                }
+                                Shape::Atom(_) => {
+                                    (hint.clone(), Noun::from(0u32))
+                                }
+                            };
 
-                            // TODO: Check if hint is a cell and fail if it would
-                            // crash.
+                            // TODO: Handle other hint types than %fast.
+                            if String::from_noun(id).unwrap() == "fast" {
+                                let core = try!(nock_on(subject.clone(), (*c).clone()));
+                                let stuff = parse_fast_clue(&clue);
+
+                                // TODO: Register core with info
+
+                                return Ok(core);
+                            }
+
                             formula = (*c).clone();
                             continue;
                         }
@@ -204,5 +219,29 @@ fn get_axis(axis: &Noun, subject: &Noun) -> NockResult {
     match axis.get() {
         Shape::Atom(ref x) => fas(BigUint::from_digits(x).unwrap(), subject),
         _ => Err(NockError)
+    }
+}
+
+fn parse_fast_clue(clue: &Noun) -> Result<(String, u32, Vec<(String, Noun)>), NockError> {
+    if let Some((ref name, ref axis_formula, ref hooks)) = clue.get_122() {
+        let chum = try!(String::from_noun(name).map_err(|_| NockError));
+
+        let axis = if let Shape::Cell(ref a, ref b) = axis_formula.get() {
+            if let (Some(1), Some(0)) = (a.as_u32(), b.as_u32()) {
+                0
+            } else if let (Some(0), Some(axis)) = (a.as_u32(), b.as_u32()) {
+                axis
+            } else {
+                return Err(NockError);
+            }
+        } else {
+            return Err(NockError);
+        };
+
+        let hooks: Vec<(String, Noun)> = try!(FromNoun::from_noun(hooks).map_err(|_| NockError));
+
+        Ok((chum, axis, hooks))
+    } else {
+        Err(NockError)
     }
 }
