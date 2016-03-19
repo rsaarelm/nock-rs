@@ -127,6 +127,11 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                                                    (*c).clone()));
                             // Fetch from core using axis.
                             formula = try!(get_axis(axis, &subject));
+                            /*
+                            let core = try!(get_axis(&Noun::from(2u32), &subject));
+                            println!("{} call {}", ::symhash(&core), ::symhash(&formula));
+                            */
+
                             continue;
                         }
                         _ => return Err(NockError),
@@ -149,7 +154,15 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                             // TODO: Handle other hint types than %fast.
                             if String::from_noun(id).unwrap() == "fast" {
                                 let core = try!(nock_on(subject.clone(), (*c).clone()));
-                                let stuff = parse_fast_clue(&clue);
+                                if let Ok((_name, _axis, _hooks)) = parse_fast_clue(&clue) {
+                                    /*
+                                    if let Shape::Cell(ref bat, _) = core.get() {
+                                        println!("{} register {} {} {:?}", ::symhash(bat), name, axis, hooks);
+                                    }
+                                    */
+                                } else {
+                                    //println!("Error parsing clue {:?}", &clue);
+                                }
 
                                 // TODO: Register core with info
 
