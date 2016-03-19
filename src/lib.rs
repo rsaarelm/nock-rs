@@ -52,6 +52,7 @@
 extern crate bit_vec;
 extern crate test;
 extern crate num;
+extern crate fnv;
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -154,8 +155,8 @@ impl Noun {
         where F: FnMut(Shape<&'a [u8], T>) -> T,
               T: Clone
     {
-        fn h<'a, F, T>(noun: &'a Noun,
-                       memo: &mut HashMap<usize, T>,
+        fn h<'a, F, T, S: hash::BuildHasher>(noun: &'a Noun,
+                       memo: &mut HashMap<usize, T, S>,
                        f: &mut F)
                        -> T
             where F: FnMut(Shape<&'a [u8], T>) -> T,
@@ -180,7 +181,8 @@ impl Noun {
             }
         }
 
-        h(self, &mut HashMap::new(), &mut f)
+        let fnv = hash::BuildHasherDefault::<fnv::FnvHasher>::default();
+        h(self, &mut HashMap::with_hasher(fnv), &mut f)
     }
 }
 
@@ -223,6 +225,14 @@ impl iter::FromIterator<Noun> for Noun {
     }
 }
 
+/// Compute a hash value for a noun using the fast fnv hasher.
+pub fn hash(noun: &Noun) -> u64 {
+    use std::hash::{Hasher, Hash};
+
+    let mut fnv = fnv::FnvHasher::default();
+    noun.hash(&mut fnv);
+    fnv.finish()
+}
 
 
 /// Trait for types that can convert themselves to a noun.

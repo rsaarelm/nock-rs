@@ -10,3 +10,4 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 bit-vec = "0.4"
 num = "0.1"
+fnv = "1.0"
