@@ -285,6 +285,15 @@ pub trait FromNoun: Sized {
     fn from_noun(n: &Noun) -> Result<Self, Self::Err>;
 }
 
+impl FromNoun for Noun
+{
+    type Err = ();
+
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+        Ok((*n).clone())
+    }
+}
+
 impl<T> FromNoun for T where T: FromDigits
 {
     type Err = ();
@@ -336,14 +345,32 @@ impl ToNoun for str
     }
 }
 
-// TODO: FromNoun for T: FromIterator<U: FromNoun>. Pair impl should give us
-// a HashMap derivation then. Use ~-terminated cell sequence as backend.
+impl<T: FromNoun> FromNoun for Vec<T> {
+    // Use the Urbit convention of 0-terminated list to match Rust vectors.
+    type Err = ();
 
-// TODO: Turn a ~-terminated noun into a vec or an iter. Can fail if the last
-// element isn't a ~, and we'll only know when we hit the last element...
-// Return type is Option<Vec<&'a Noun>>?
+    fn from_noun(mut n: &Noun) -> Result<Self, Self::Err> {
+        let mut ret = Vec::new();
 
-// TODO: ToNoun for T: IntoIterator<U: ToNoun>.
+        loop {
+            // List terminator.
+            if n == &Noun::from(0u32) {
+                return Ok(ret);
+            }
+
+            if let Shape::Cell(ref head, ref tail) = n.get() {
+                ret.push(try!(T::from_noun(head).map_err(|_| ())));
+                n = tail;
+            } else {
+                return Err(());
+            }
+        }
+    }
+}
+
+// TODO: HashMap conversion.
+
+// TODO: ToNoun for Vec<T: ToNoun>.
 
 // TODO: FromNoun/ToNoun for signed numbers using the Urbit representation
 // convention.
