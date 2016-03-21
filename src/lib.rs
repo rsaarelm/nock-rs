@@ -94,6 +94,7 @@ enum Inner {
 pub type NounShape<'a> = Shape<&'a [u8], &'a Noun>;
 
 impl Noun {
+    /// Get a shape wrapper for the noun to examine its structure.
     pub fn get<'a>(&'a self) -> NounShape<'a> {
         match self.0 {
             Inner::Atom(ref v) => Shape::Atom(&v),
@@ -116,7 +117,10 @@ impl Noun {
         None
     }
 
-    /// Memory address or other unique identifier for the noun.
+    /// Address of the noun's data in memory, usable as an unique identifier.
+    ///
+    /// Nouns with the same address are always the same, but nouns with
+    /// different addresses are not guaranteed to have different values.
     pub fn addr(&self) -> usize {
         &*self as *const _ as usize
     }
@@ -148,7 +152,12 @@ impl Noun {
         }
     }
 
-    /// Run a memoizing fold over the noun
+    /// Run a memoizing fold over the noun.
+    ///
+    /// Each noun with an unique memory address will only be processed once, so
+    /// the fold method allows efficient computation over nouns that may be
+    /// extremely large logically, but involve a great deal of reuse of the same
+    /// subnoun objects in practice.
     pub fn fold<'a, F, T>(&'a self, mut f: F) -> T
         where F: FnMut(Shape<&'a [u8], T>) -> T,
               T: Clone
@@ -235,7 +244,6 @@ impl<T> ToNoun for T where T: DigitSlice
         Noun::atom(self.as_digits())
     }
 }
-
 
 /// A trait for types that can be instantiated from a Nock noun.
 pub trait FromNoun: Sized {
@@ -433,8 +441,6 @@ impl str::FromStr for Noun {
                     _ => return Err(ParseError),
                 }
             }
-
-
 
             Ok(elts.into_iter().collect())
         }
