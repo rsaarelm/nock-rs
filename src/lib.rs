@@ -49,7 +49,6 @@
 #![crate_name="nock"]
 
 #![feature(test)]
-extern crate bit_vec;
 extern crate test;
 extern crate num;
 extern crate fnv;
