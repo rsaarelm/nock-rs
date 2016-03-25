@@ -313,6 +313,20 @@ impl ToNoun for str
     }
 }
 
+impl FromNoun for bool {
+    type Err = ();
+
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+        Ok(n.as_u32() == Some(0))
+    }
+}
+
+impl ToNoun for bool {
+    fn to_noun(&self) -> Noun {
+        Noun::from(if *self { 0u32 } else { 1u32 })
+    }
+}
+
 impl<T: FromNoun> FromNoun for Vec<T> {
     // Use the Urbit convention of 0-terminated list to match Rust vectors.
     type Err = ();
