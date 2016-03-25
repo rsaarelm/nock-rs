@@ -292,6 +292,26 @@ impl<T, U> FromNoun for (T, U)
     }
 }
 
+impl<T1, T2, T3> FromNoun for (T1, T2, T3)
+    where T1: FromNoun,
+          T2: FromNoun,
+          T3: FromNoun
+{
+    type Err = ();
+
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+        match n.get_122() {
+            Some((t1, t2, t3)) => {
+                let t1 = try!(T1::from_noun(t1).map_err(|_| ()));
+                let t2 = try!(T2::from_noun(t2).map_err(|_| ()));
+                let t3 = try!(T3::from_noun(t3).map_err(|_| ()));
+                Ok((t1, t2, t3))
+            }
+            _ => Err(()),
+        }
+    }
+}
+
 impl FromNoun for String
 {
     type Err = ();
