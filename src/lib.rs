@@ -61,9 +61,9 @@ use std::iter;
 use std::hash;
 use std::default;
 use num::BigUint;
-use digit_slice::{DigitSlice, FromDigits};
+pub use digit_slice::{DigitSlice, FromDigits};
 
-pub use nock::nock_on;
+pub use nock::{nock_on, get_axis};
 
 mod digit_slice;
 mod nock;

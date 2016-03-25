@@ -173,7 +173,8 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
     }
 }
 
-fn get_axis(axis: &Noun, subject: &Noun) -> NockResult {
+/// Evaluate nock `/[axis subject]`
+pub fn get_axis(axis: &Noun, subject: &Noun) -> NockResult {
     // TODO: Optimize for small atoms.
     fn fas(x: BigUint, n: &Noun) -> NockResult {
         let two = BigUint::from_u32(2).unwrap();
