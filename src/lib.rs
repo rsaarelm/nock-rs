@@ -83,7 +83,7 @@ pub enum Shape<A, N> {
 /// Atoms are represented by a little-endian byte array of 8-bit digits.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Noun {
-    hash: u64,
+    hash: u32,
     value: Inner,
 }
 
@@ -94,23 +94,6 @@ enum Inner {
 }
 
 pub type NounShape<'a> = Shape<&'a [u8], &'a Noun>;
-
-pub fn hash<T: hash::Hash>(a: &T) -> u64 {
-    use std::hash::{Hasher, Hash};
-
-    let mut fnv = fnv::FnvHasher::default();
-    a.hash(&mut fnv);
-    fnv.finish()
-}
-
-pub fn hash2<T: hash::Hash>(a: &T, b: &T) -> u64 {
-    use std::hash::{Hasher, Hash};
-
-    let mut fnv = fnv::FnvHasher::default();
-    a.hash(&mut fnv);
-    b.hash(&mut fnv);
-    fnv.finish()
-}
 
 impl Noun {
     /// Get a shape wrapper for the noun to examine its structure.
@@ -140,14 +123,19 @@ impl Noun {
     ///
     /// Nouns with the same address are always the same, but nouns with
     /// different addresses are not guaranteed to have different values.
+    #[inline]
     pub fn addr(&self) -> usize {
         &*self as *const _ as usize
+    }
+
+    pub fn mug(&self) -> u32 {
+        self.hash
     }
 
     /// Build a new atom noun from a little-endian 8-bit digit sequence.
     pub fn atom(digits: &[u8]) -> Noun {
         Noun {
-            hash: hash(&digits),
+            hash: mug_atom(digits, 2_166_136_261),
             value: Inner::Atom(Rc::new(digits.to_vec())),
         }
     }
@@ -155,7 +143,7 @@ impl Noun {
     /// Build a new cell noun from two existing nouns.
     pub fn cell(a: Noun, b: Noun) -> Noun {
         Noun {
-            hash: hash2(&a.hash, &b.hash),
+            hash: mug_pair(a.mug(), b.mug()),
             value: Inner::Cell(Rc::new(a), Rc::new(b)),
         }
     }
@@ -244,6 +232,34 @@ impl iter::FromIterator<Noun> for Noun {
          })
          .expect("Can't make noun from empty list")
     }
+}
+
+fn mug_atom(a: &[u8], init: u32) -> u32 {
+    let mut c = init;
+    for i in a.iter() {
+        c = fnv(*i as u32 ^ c);
+    }
+
+    let ret = (c >> 31) ^ (c % (1 << 31));
+    if ret != 0 {
+        ret
+    } else {
+        mug_atom(a, init.wrapping_add(1))
+    }
+}
+
+fn mug_pair(p: u32, q: u32) -> u32 {
+    let c = fnv(p ^ fnv(q));
+    let ret = (c >> 31) ^ (c % (1 << 31));
+    if ret != 0 {
+        ret
+    } else {
+        mug_pair(p, q.wrapping_add(1))
+    }
+}
+
+fn fnv(x: u32) -> u32 {
+    x.wrapping_mul(16_777_619)
 }
 
 
@@ -763,5 +779,15 @@ mod tests {
         assert_eq!(String::from_noun(&Noun::from(190u32)), Err(()));
         assert_eq!(String::from_noun(&Noun::from(7303014u32)), Ok("foo".to_string()));
         assert_eq!(String::from_noun(&"quux".to_noun()), Ok("quux".to_string()));
+    }
+
+    #[test]
+    fn test_mug() {
+        assert_eq!(Noun::from(0u32).mug(), 18652612);
+        assert_eq!(Noun::from(1u32).mug(), 67918732);
+        assert_eq!(Noun::from(10000u32).mug(), 178152889);
+        assert_eq!(Noun::from(10001u32).mug(), 714838017);
+        assert_eq!(n![0, 10].mug(), 1872403737);
+        assert_eq!(n![1, 2, 3, 4, 5, 0].mug(), 1067931605);
     }
 }
