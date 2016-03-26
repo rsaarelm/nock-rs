@@ -1,5 +1,5 @@
 use num::BigUint;
-use num::traits::{Zero, One, FromPrimitive};
+use num::traits::One;
 use digit_slice::{DigitSlice, FromDigits};
 use {Shape, Noun, NockError, NockResult};
 
@@ -175,38 +175,66 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
 
 /// Evaluate nock `/[axis subject]`
 pub fn get_axis(axis: &Noun, subject: &Noun) -> NockResult {
-    // TODO: Optimize for small atoms.
-    fn fas(x: BigUint, n: &Noun) -> NockResult {
-        let two = BigUint::from_u32(2).unwrap();
-        let three = BigUint::from_u32(3).unwrap();
-        if x == BigUint::zero() {
-            return Err(NockError);
-        }
-        if x == BigUint::one() {
-            return Ok(n.clone());
-        }
-        if let Shape::Cell(ref a, ref b) = n.get() {
-            if x == two {
-                return Ok((*a).clone());
-            } else if x == three {
-                return Ok((*b).clone());
-            } else {
-                let half = x.clone() >> 1;
-                let p = try!(fas(half, n));
-
-                if x % two.clone() == BigUint::zero() {
-                    fas(two, &p)
+    fn fas(x: &[u8], n: usize, mut subject: &Noun) -> NockResult {
+        for i in (0..(n - 1)).rev() {
+            if let Shape::Cell(ref a, ref b) = subject.get() {
+                if bit(x, i) {
+                    subject = b;
                 } else {
-                    fas(three, &p)
+                    subject = a;
                 }
+            } else {
+                return Err(NockError);
             }
-        } else {
-            return Err(NockError);
         }
+        Ok((*subject).clone())
     }
 
     match axis.get() {
-        Shape::Atom(ref x) => fas(BigUint::from_digits(x).unwrap(), subject),
+        Shape::Atom(ref x) => {
+            let start = msb(x);
+            fas(x, start, subject)
+        }
         _ => Err(NockError)
+    }
+}
+
+#[inline]
+fn bit(data: &[u8], pos: usize) -> bool {
+    data[pos / 8] & (1 << (pos % 8)) != 0
+}
+
+/// Return the bit position of the most significant bit, interpreting the data
+/// as a little-endian integer.
+fn msb(data: &[u8]) -> usize {
+    let mut offset = 0;
+    let mut ret = 0;
+    for byte in data.iter() {
+        let mut b = *byte;
+        if b == 0 { continue; }
+        let mut x = 0;
+        while b != 0 {
+            x += 1;
+            b >>= 1;
+        }
+        ret = offset * 8 + x;
+        offset += 1;
+    }
+    ret
+}
+
+#[cfg(test)]
+mod tests {
+    use super::msb;
+
+    #[test]
+    fn test_msb() {
+        assert_eq!(0, msb(&vec![]));
+        assert_eq!(0, msb(&vec![0]));
+        assert_eq!(1, msb(&vec![1]));
+        assert_eq!(4, msb(&vec![15]));
+        assert_eq!(5, msb(&vec![16]));
+        assert_eq!(13, msb(&vec![123, 16]));
+        assert_eq!(13, msb(&vec![123, 16, 0]));
     }
 }
