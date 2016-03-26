@@ -141,7 +141,8 @@ pub fn nock_on(mut subject: Noun, mut formula: Noun) -> NockResult {
                             if let Shape::Cell(_, ref q) = b.get() {
                                 // As per spec, try to nock a cell-shaped
                                 // hint just to see whether it'll crash.
-                                let _ = try!(nock_on(subject.clone(), (*q).clone()));
+                                let _ = try!(nock_on(subject.clone(),
+                                                     (*q).clone()));
                             }
 
                             formula = (*c).clone();
@@ -195,7 +196,7 @@ pub fn get_axis(axis: &Noun, subject: &Noun) -> NockResult {
             let start = msb(x);
             fas(x, start, subject)
         }
-        _ => Err(NockError)
+        _ => Err(NockError),
     }
 }
 
@@ -211,7 +212,9 @@ fn msb(data: &[u8]) -> usize {
     let mut ret = 0;
     for byte in data.iter() {
         let mut b = *byte;
-        if b == 0 { continue; }
+        if b == 0 {
+            continue;
+        }
         let mut x = 0;
         while b != 0 {
             x += 1;

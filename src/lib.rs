@@ -176,9 +176,9 @@ impl Noun {
               T: Clone
     {
         fn h<'a, F, T, S: hash::BuildHasher>(noun: &'a Noun,
-                       memo: &mut HashMap<usize, T, S>,
-                       f: &mut F)
-                       -> T
+                                             memo: &mut HashMap<usize, T, S>,
+                                             f: &mut F)
+                                             -> T
             where F: FnMut(Shape<&'a [u8], T>) -> T,
                   T: Clone
         {
@@ -268,7 +268,8 @@ pub trait ToNoun {
     fn to_noun(&self) -> Noun;
 }
 
-impl<T> ToNoun for T where T: DigitSlice
+impl<T> ToNoun for T
+    where T: DigitSlice
 {
     fn to_noun(&self) -> Noun {
         Noun::atom(self.as_digits())
@@ -284,8 +285,7 @@ pub trait FromNoun: Sized {
     fn from_noun(n: &Noun) -> Result<Self, Self::Err>;
 }
 
-impl FromNoun for Noun
-{
+impl FromNoun for Noun {
     type Err = ();
 
     fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
@@ -293,7 +293,8 @@ impl FromNoun for Noun
     }
 }
 
-impl<T> FromNoun for T where T: FromDigits
+impl<T> FromNoun for T
+    where T: FromDigits
 {
     type Err = ();
 
@@ -343,8 +344,7 @@ impl<T1, T2, T3> FromNoun for (T1, T2, T3)
     }
 }
 
-impl FromNoun for String
-{
+impl FromNoun for String {
     type Err = ();
 
     fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
@@ -352,13 +352,12 @@ impl FromNoun for String
             Shape::Atom(bytes) => {
                 String::from_utf8(bytes.to_vec()).map_err(|_| ())
             }
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
 
-impl ToNoun for str
-{
+impl ToNoun for str {
     fn to_noun(&self) -> Noun {
         Noun::atom(self.as_bytes())
     }
@@ -374,7 +373,11 @@ impl FromNoun for bool {
 
 impl ToNoun for bool {
     fn to_noun(&self) -> Noun {
-        Noun::from(if *self { 0u32 } else { 1u32 })
+        Noun::from(if *self {
+            0u32
+        } else {
+            1u32
+        })
     }
 }
 
@@ -777,8 +780,10 @@ mod tests {
     fn test_cord() {
         assert_eq!(String::from_noun(&Noun::from(0u32)), Ok("".to_string()));
         assert_eq!(String::from_noun(&Noun::from(190u32)), Err(()));
-        assert_eq!(String::from_noun(&Noun::from(7303014u32)), Ok("foo".to_string()));
-        assert_eq!(String::from_noun(&"quux".to_noun()), Ok("quux".to_string()));
+        assert_eq!(String::from_noun(&Noun::from(7303014u32)),
+                   Ok("foo".to_string()));
+        assert_eq!(String::from_noun(&"quux".to_noun()),
+                   Ok("quux".to_string()));
     }
 
     #[test]
