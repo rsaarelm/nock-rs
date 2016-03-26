@@ -82,7 +82,10 @@ pub enum Shape<A, N> {
 ///
 /// Atoms are represented by a little-endian byte array of 8-bit digits.
 #[derive(Clone, PartialEq, Eq)]
-pub struct Noun(Inner);
+pub struct Noun {
+    hash: u64,
+    value: Inner,
+}
 
 #[derive(Clone, PartialEq, Eq)]
 enum Inner {
@@ -92,10 +95,27 @@ enum Inner {
 
 pub type NounShape<'a> = Shape<&'a [u8], &'a Noun>;
 
+pub fn hash<T: hash::Hash>(a: &T) -> u64 {
+    use std::hash::{Hasher, Hash};
+
+    let mut fnv = fnv::FnvHasher::default();
+    a.hash(&mut fnv);
+    fnv.finish()
+}
+
+pub fn hash2<T: hash::Hash>(a: &T, b: &T) -> u64 {
+    use std::hash::{Hasher, Hash};
+
+    let mut fnv = fnv::FnvHasher::default();
+    a.hash(&mut fnv);
+    b.hash(&mut fnv);
+    fnv.finish()
+}
+
 impl Noun {
     /// Get a shape wrapper for the noun to examine its structure.
     pub fn get<'a>(&'a self) -> NounShape<'a> {
-        match self.0 {
+        match self.value {
             Inner::Atom(ref v) => Shape::Atom(&v),
             Inner::Cell(ref a, ref b) => Shape::Cell(&*a, &*b),
         }
@@ -126,12 +146,18 @@ impl Noun {
 
     /// Build a new atom noun from a little-endian 8-bit digit sequence.
     pub fn atom(digits: &[u8]) -> Noun {
-        Noun(Inner::Atom(Rc::new(digits.to_vec())))
+        Noun {
+            hash: hash(&digits),
+            value: Inner::Atom(Rc::new(digits.to_vec())),
+        }
     }
 
     /// Build a new cell noun from two existing nouns.
     pub fn cell(a: Noun, b: Noun) -> Noun {
-        Noun(Inner::Cell(Rc::new(a), Rc::new(b)))
+        Noun {
+            hash: hash2(&a.hash, &b.hash),
+            value: Inner::Cell(Rc::new(a), Rc::new(b)),
+        }
     }
 
     /// Build a noun from a convertible value.
@@ -144,7 +170,7 @@ impl Noun {
     /// Will not match atoms that are larger than 2^32, but is not guaranteed
     /// to match atoms that are smaller than 2^32 but not by much.
     pub fn as_u32(&self) -> Option<u32> {
-        if let &Noun(Inner::Atom(ref digits)) = self {
+        if let Shape::Atom(ref digits) = self.get() {
             u32::from_digits(digits).ok()
         } else {
             None
@@ -200,18 +226,7 @@ impl default::Default for Noun {
 
 impl hash::Hash for Noun {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        fn f<H: hash::Hasher>(state: &mut H, shape: Shape<&[u8], u64>) -> u64 {
-            match shape {
-                Shape::Atom(x) => x.hash(state),
-                Shape::Cell(a, b) => {
-                    a.hash(state);
-                    b.hash(state);
-                }
-            }
-            state.finish()
-        }
-        self.fold(|x| f(state, x))
-            .hash(state);
+        self.hash.hash(state);
     }
 }
 
@@ -493,14 +508,14 @@ impl str::FromStr for Noun {
 
 impl fmt::Display for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.0 {
+        match self.value {
             Inner::Atom(ref n) => return dot_separators(f, &n),
             Inner::Cell(ref a, ref b) => {
                 try!(write!(f, "[{} ", a));
                 // List pretty-printer.
                 let mut cur = b;
                 loop {
-                    match cur.0 {
+                    match cur.value {
                         Inner::Cell(ref a, ref b) => {
                             try!(write!(f, "{} ", a));
                             cur = &b;
