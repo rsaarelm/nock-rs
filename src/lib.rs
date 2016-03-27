@@ -48,8 +48,6 @@
 
 #![crate_name="nock"]
 
-#![feature(test)]
-extern crate test;
 extern crate num;
 extern crate fnv;
 
@@ -237,7 +235,7 @@ impl iter::FromIterator<Noun> for Noun {
 fn mug_atom(a: &[u8], init: u32) -> u32 {
     let mut c = init;
     for i in a.iter() {
-        c = fnv(*i as u32 ^ c);
+        c = _fnv(*i as u32 ^ c);
     }
 
     let ret = (c >> 31) ^ (c & 0x7fffffff);
@@ -249,7 +247,7 @@ fn mug_atom(a: &[u8], init: u32) -> u32 {
 }
 
 fn mug_pair(p: u32, q: u32) -> u32 {
-    let c = fnv(p ^ fnv(q));
+    let c = _fnv(p ^ _fnv(q));
     let ret = (c >> 31) ^ (c & 0x7fffffff);
     if ret != 0 {
         ret
@@ -258,7 +256,7 @@ fn mug_pair(p: u32, q: u32) -> u32 {
     }
 }
 
-fn fnv(x: u32) -> u32 {
+fn _fnv(x: u32) -> u32 {
     x.wrapping_mul(16_777_619)
 }
 
@@ -575,7 +573,6 @@ impl fmt::Debug for Noun {
 mod tests {
     use std::hash;
     use num::BigUint;
-    use test::Bencher;
     use super::{Noun, Shape, FromNoun, ToNoun};
 
     /// Macro for noun literals.
@@ -759,15 +756,13 @@ mod tests {
                  "55");
     }
 
-    #[bench]
-    fn test_stack(b: &mut Bencher) {
+    #[test]
+    fn test_stack() {
         // Subtraction. Tests tail call elimination, will trash stack if it
         // doesn't work.
-        b.iter(|| {
-            produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] \
-                      [4 0 6] 0 7] 9 2 0 1]",
-                     "9.999")
-        })
+        produces("[10.000 8 [1 0] 8 [1 6 [5 [0 7] 4 0 6] [0 6] 9 2 [0 2] \
+                  [4 0 6] 0 7] 9 2 0 1]",
+                 "9.999");
     }
 
     #[test]
