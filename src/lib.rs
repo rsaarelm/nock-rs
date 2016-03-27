@@ -618,12 +618,6 @@ mod tests {
                    output);
     }
 
-    #[test]
-    fn scratch() {
-        let x = Noun::from(123u32);
-        assert!(x == Noun::from(123u8));
-    }
-
     fn hash<T: hash::Hash>(t: &T) -> u64 {
         use std::hash::Hasher;
         let mut s = hash::SipHasher::new();
@@ -788,13 +782,15 @@ mod tests {
 
     #[test]
     fn test_mug() {
-        assert_eq!(Noun::from(0u32).mug(), 18652612);
-        assert_eq!(Noun::from(1u32).mug(), 67918732);
-        assert_eq!(Noun::from(10000u32).mug(), 178152889);
-        assert_eq!(Noun::from(10001u32).mug(), 714838017);
-        assert_eq!(Noun::from(10001u32).mug(), 714838017);
-        assert_eq!("123.456.789.123.456.789".parse::<Noun>().unwrap().mug(), 322093503);
-        assert_eq!("123.456.789.123.456.789.123.456.789".parse::<Noun>().unwrap().mug(), 61582623);
-        assert_eq!(n![1, 2, 3, 4, 5, 0].mug(), 1067931605);
+        assert_eq!(Noun::from(0u32).mug(), 18_652_612);
+        assert_eq!(Noun::from(1u32).mug(), 67_918_732);
+        assert_eq!(Noun::from(126u32).mug(), 2_064_403_808);
+        assert_eq!(Noun::from(10_000u32).mug(), 178_152_889);
+        assert_eq!(Noun::from(10_001u32).mug(), 714_838_017);
+        assert_eq!("123.456.789.123.456.789".parse::<Noun>().unwrap().mug(), 322_093_503);
+        assert_eq!("123.456.789.123.456.789.123.456.789".parse::<Noun>().unwrap().mug(), 61_582_623);
+        assert_eq!(n![1, 2, 3, 4, 5, 0].mug(), 1_067_931_605);
+        // This would get mugged to zero without the nonzero check.
+        assert_eq!(Noun::from(2_048_341_237u32).mug(), 1_229_723_070);
     }
 }
