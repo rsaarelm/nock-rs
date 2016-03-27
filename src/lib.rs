@@ -240,7 +240,7 @@ fn mug_atom(a: &[u8], init: u32) -> u32 {
         c = fnv(*i as u32 ^ c);
     }
 
-    let ret = (c >> 31) ^ (c % (1 << 31));
+    let ret = (c >> 31) ^ (c & 0x7fffffff);
     if ret != 0 {
         ret
     } else {
@@ -250,7 +250,7 @@ fn mug_atom(a: &[u8], init: u32) -> u32 {
 
 fn mug_pair(p: u32, q: u32) -> u32 {
     let c = fnv(p ^ fnv(q));
-    let ret = (c >> 31) ^ (c % (1 << 31));
+    let ret = (c >> 31) ^ (c & 0x7fffffff);
     if ret != 0 {
         ret
     } else {
@@ -792,7 +792,9 @@ mod tests {
         assert_eq!(Noun::from(1u32).mug(), 67918732);
         assert_eq!(Noun::from(10000u32).mug(), 178152889);
         assert_eq!(Noun::from(10001u32).mug(), 714838017);
-        assert_eq!(n![0, 10].mug(), 1872403737);
+        assert_eq!(Noun::from(10001u32).mug(), 714838017);
+        assert_eq!("123.456.789.123.456.789".parse::<Noun>().unwrap().mug(), 322093503);
+        assert_eq!("123.456.789.123.456.789.123.456.789".parse::<Noun>().unwrap().mug(), 61582623);
         assert_eq!(n![1, 2, 3, 4, 5, 0].mug(), 1067931605);
     }
 }
