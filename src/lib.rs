@@ -61,7 +61,7 @@ use std::default;
 use num::BigUint;
 pub use digit_slice::{DigitSlice, FromDigits};
 
-pub use nock::{nock_on, get_axis};
+pub use nock::{nock_on, get_axis, msb};
 
 mod digit_slice;
 mod nock;
