@@ -2,6 +2,8 @@ use std::slice;
 use std::mem;
 use num::bigint::{BigUint, BigDigit};
 
+/// Types that can be interpreted as arbitrary-length little-endian base-256
+/// integers.
 pub trait DigitSlice {
     /// Return a little-endian byte slice corresponding to an in-memory unsigned
     /// integer value.
@@ -10,6 +12,7 @@ pub trait DigitSlice {
     fn as_digits<'a>(&'a self) -> &'a [u8];
 }
 
+/// Types that can be constructed from base-256 integers.
 pub trait FromDigits: Sized {
     type Err;
 

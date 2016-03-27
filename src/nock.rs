@@ -8,22 +8,28 @@ use {Shape, Noun, NockError, NockResult};
 /// A virtual machine can process Hint operations and accelerate Call
 /// operations.
 pub trait Nock {
-    /// Hook for accelerating the computation of a known formula.
+    /// Accelerate computation of a formula, if possible.
     ///
-    /// Nock `*[a 9 b c]`, will trigger `call(*[a c], *[a 0 b])`.
+    /// Nock `*[a 9 b c]`, will trigger `call(*[a c], *[*[a c] 0 b])`.
     /// If call returns a noun, that noun will be used as the result of the
-    /// nock evaluation. Otherwise the formula will be evaluated as standard
-    /// nock.
+    /// Nock evaluation. Otherwise the formula will be evaluated as standard
+    /// Nock.
+    ///
+    /// The return value must be exactly the same as you would get for
+    /// evaluating the formula on the subject with a standard Nock
+    /// interpreter.
     #[allow(unused_variables)]
     fn call(&mut self, subject: &Noun, formula: &Noun) -> Option<Noun> {
         None
     }
 
-    /// Allows the VM to handle a hint from a Nock 10 call.
+    /// Handle a Nock hint.
     ///
-    /// Nock `*[a 10 b c]` will trigger `hint(a, b)`.
+    /// Nock `*[a 10 b c]` will trigger `hint(a, b, c)`.
     #[allow(unused_variables)]
-    fn hint(&mut self, subject: &Noun, hint: &Noun) {}
+    fn hint(&mut self, subject: &Noun, hint: &Noun, c: &Noun) -> Result<(), NockError> {
+        Ok(())
+    }
 
     /// Evaluate the nock `*[subject formula]`
     fn nock_on(&mut self, mut subject: Noun, mut formula: Noun) -> NockResult {
@@ -170,7 +176,7 @@ pub trait Nock {
                     Some(10) => {
                         match tail.get() {
                             Shape::Cell(ref b, ref c) => {
-                                self.hint(&subject, b);
+                                try!(self.hint(&subject, b, c));
                                 formula = (*c).clone();
                                 continue;
                             }
