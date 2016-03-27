@@ -61,7 +61,7 @@ use std::default;
 use num::BigUint;
 pub use digit_slice::{DigitSlice, FromDigits};
 
-pub use nock::{nock_on, get_axis, msb};
+pub use nock::{Nock, get_axis, msb};
 
 mod digit_slice;
 mod nock;
@@ -573,7 +573,10 @@ impl fmt::Debug for Noun {
 mod tests {
     use std::hash;
     use num::BigUint;
-    use super::{Noun, Shape, FromNoun, ToNoun};
+    use super::{Nock, Noun, Shape, FromNoun, ToNoun};
+
+    struct VM;
+    impl Nock for VM {}
 
     /// Macro for noun literals.
     ///
@@ -599,8 +602,6 @@ mod tests {
     }
 
     fn produces(input: &str, output: &str) {
-        use super::nock_on;
-
         let (s, f) = match input.parse::<Noun>() {
             Err(_) => panic!("Parsing failed"),
             Ok(x) => {
@@ -611,7 +612,7 @@ mod tests {
                 }
             }
         };
-        assert_eq!(format!("{}", nock_on(s, f).ok().expect("Eval failed")),
+        assert_eq!(format!("{}", VM.nock_on(s, f).ok().expect("Eval failed")),
                    output);
     }
 

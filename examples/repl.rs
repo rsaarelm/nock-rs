@@ -2,12 +2,16 @@ extern crate nock;
 
 use std::default::Default;
 use std::io::{self, BufRead, Write};
-use nock::Noun;
+use nock::{Nock, Noun};
+
+struct VM;
+impl Nock for VM {}
 
 fn main() {
     let mut subject: Noun = Default::default();
     // Default to identity formula.
     let mut formula = Noun::cell(Noun::from(0u32), Noun::from(1u32));
+    let mut vm = VM;
 
     println!("Welcome to nock-rs");
     println!("Type a formula to nock on the subject");
@@ -21,7 +25,7 @@ fn main() {
             Ok(_) => {
                 if input == "\n" {
                     // Reuse previous valid formula on empty input.
-                    match nock::nock_on(subject.clone(), formula.clone()) {
+                    match vm.nock_on(subject.clone(), formula.clone()) {
                         Ok(eval) => {
                             subject = eval;
                         }
@@ -30,7 +34,7 @@ fn main() {
                 } else {
                     match input.parse::<nock::Noun>() {
                         Ok(f) => {
-                            match nock::nock_on(subject.clone(), f.clone()) {
+                            match vm.nock_on(subject.clone(), f.clone()) {
                                 Ok(eval) => {
                                     subject = eval;
                                     formula = f;
