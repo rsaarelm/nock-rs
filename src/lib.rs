@@ -59,9 +59,9 @@ use std::iter;
 use std::hash;
 use std::default;
 use num::BigUint;
-pub use digit_slice::{DigitSlice, FromDigits};
+pub use digit_slice::{DigitSlice, FromDigits, msb};
 
-pub use nock::{Nock, get_axis, msb};
+pub use nock::{Nock, get_axis};
 
 mod digit_slice;
 mod nock;

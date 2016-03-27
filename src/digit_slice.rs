@@ -94,6 +94,27 @@ primitive_impl!(u32);
 primitive_impl!(u64);
 primitive_impl!(usize);
 
+/// Return the bit position of the most significant bit.
+///
+/// Interprets the data as a little-endian integer.
+/// Assumes that the data has no trailing zeroes.
+#[inline]
+pub fn msb(data: &[u8]) -> usize {
+    if data.len() == 0 {
+        return 0;
+    }
+
+    let mut last = data[data.len() - 1];
+    assert!(last != 0);
+    let mut ret = (data.len() - 1) * 8;
+    while last != 0 {
+        ret += 1;
+        last >>= 1;
+    }
+
+    ret
+}
+
 #[cfg(test)]
 mod tests {
     use num::{BigUint, FromPrimitive};
@@ -123,5 +144,15 @@ mod tests {
                                           0x44, 0x33, 0x22, 0x11])
                        .unwrap(),
                    BigUint::parse_bytes(b"112233445566778899", 16).unwrap());
+    }
+
+    #[test]
+    fn test_msb() {
+        use super::msb;
+        assert_eq!(0, msb(&vec![]));
+        assert_eq!(1, msb(&vec![1]));
+        assert_eq!(4, msb(&vec![15]));
+        assert_eq!(5, msb(&vec![16]));
+        assert_eq!(13, msb(&vec![123, 16]));
     }
 }
