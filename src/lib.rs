@@ -291,6 +291,17 @@ impl FromNoun for Noun {
     }
 }
 
+impl FromNoun for Rc<Vec<u8>> {
+    type Err = ();
+
+    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+        match n.value {
+            Inner::Atom(ref v) => Ok(v.clone()),
+            _ => Err(()),
+        }
+    }
+}
+
 impl<T> FromNoun for T
     where T: FromDigits
 {
