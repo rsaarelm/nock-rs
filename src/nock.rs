@@ -27,7 +27,11 @@ pub trait Nock {
     ///
     /// Nock `*[a 10 b c]` will trigger `hint(a, b, c)`.
     #[allow(unused_variables)]
-    fn hint(&mut self, subject: &Noun, hint: &Noun, c: &Noun) -> Result<(), NockError> {
+    fn hint(&mut self,
+            subject: &Noun,
+            hint: &Noun,
+            c: &Noun)
+            -> Result<(), NockError> {
         Ok(())
     }
 
@@ -225,7 +229,7 @@ pub fn get_axis(axis: &Noun, subject: &Noun) -> NockResult {
         Ok((*subject).clone())
     }
 
-#[inline]
+    #[inline]
     fn bit(data: &[u8], pos: usize) -> bool {
         data[pos / 8] & (1 << (pos % 8)) != 0
     }
@@ -238,4 +242,3 @@ pub fn get_axis(axis: &Noun, subject: &Noun) -> NockResult {
         _ => Err(NockError),
     }
 }
-

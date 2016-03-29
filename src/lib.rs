@@ -202,7 +202,91 @@ impl Noun {
         let fnv = hash::BuildHasherDefault::<fnv::FnvHasher>::default();
         h(self, &mut HashMap::with_hasher(fnv), &mut f)
     }
+
+    /// Return whether a noun is a list with more than n elements.
+    fn is_wider_than(&self, n: usize) -> bool {
+        if n == 0 {
+            true
+        } else {
+            match self.get() {
+                Shape::Cell(_, ref a) => a.is_wider_than(n - 1),
+                _ => false
+            }
+        }
+    }
+
+    /// 3-letter abbrevation identifier for noun.
+    fn glyph(&self) -> String {
+        let alpha = "abcdefghijklmnopqrstuvwxyz".as_bytes();
+        let mut ret = String::new();
+        let mut mug = self.mug() as usize;
+        for _ in 0..3 {
+            ret.push(alpha[mug % alpha.len()] as char);
+            mug /= alpha.len();
+        }
+        ret
+    }
+
+    /// Print the complete noun, even if it's very large.
+    pub fn print_full(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.print(f, false)
+    }
+
+    /// Print a truncated noun.
+    pub fn print_abbrev(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.print(f, true)
+    }
+
+    fn print(&self, f: &mut fmt::Formatter, abbrev: bool) -> fmt::Result {
+        const MAX_ATOM_BITS: usize = 128;
+        const MAX_CELL_WIDTH: usize = 12;
+
+        match self.value {
+            Inner::Atom(ref n) => {
+                if abbrev && msb(n) > MAX_ATOM_BITS {
+                    // Print huge atoms as abbreviated glyphs
+                    return write!(f, "@{}", self.glyph());
+                }
+                // Print dot-separated integer.
+                let s = format!("{}", BigUint::from_digits(n).unwrap());
+                let phase = s.len() % 3;
+                for (i, c) in s.chars().enumerate() {
+                    if i > 0 && i % 3 == phase {
+                        try!(write!(f, "."));
+                    }
+                    try!(write!(f, "{}", c));
+                }
+                Ok(())
+            }
+
+            Inner::Cell(ref a, ref b) => {
+                if abbrev && self.is_wider_than(MAX_CELL_WIDTH) {
+                    return write!(f, "[{}]", self.glyph());
+                }
+
+                try!(write!(f, "["));
+                try!(a.print(f, abbrev));
+                try!(write!(f, " "));
+                // List pretty-printer.
+                let mut cur = b;
+                loop {
+                    match cur.value {
+                        Inner::Cell(ref a, ref b) => {
+                            try!(a.print(f, abbrev));
+                            try!(write!(f, " "));
+                            cur = &b;
+                        }
+                        Inner::Atom(_) => {
+                            try!(cur.print(f, abbrev));
+                            return write!(f, "]");
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
+
 
 impl default::Default for Noun {
     fn default() -> Self {
@@ -536,46 +620,13 @@ impl str::FromStr for Noun {
 
 impl fmt::Display for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.value {
-            Inner::Atom(ref n) => return dot_separators(f, &n),
-            Inner::Cell(ref a, ref b) => {
-                try!(write!(f, "[{} ", a));
-                // List pretty-printer.
-                let mut cur = b;
-                loop {
-                    match cur.value {
-                        Inner::Cell(ref a, ref b) => {
-                            try!(write!(f, "{} ", a));
-                            cur = &b;
-                        }
-                        Inner::Atom(ref n) => {
-                            try!(dot_separators(f, &n));
-                            return write!(f, "]");
-                        }
-                    }
-                }
-            }
-        }
-
-        fn dot_separators(f: &mut fmt::Formatter,
-                          digits: &[u8])
-                          -> fmt::Result {
-            let s = format!("{}", BigUint::from_digits(digits).unwrap());
-            let phase = s.len() % 3;
-            for (i, c) in s.chars().enumerate() {
-                if i > 0 && i % 3 == phase {
-                    try!(write!(f, "."));
-                }
-                try!(write!(f, "{}", c));
-            }
-            Ok(())
-        }
+        self.print_abbrev(f)
     }
 }
 
 impl fmt::Debug for Noun {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self)
+        self.print_abbrev(f)
     }
 }
 
