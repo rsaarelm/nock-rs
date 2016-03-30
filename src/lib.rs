@@ -53,6 +53,7 @@ extern crate fnv;
 
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::error::Error;
 use std::str;
 use std::fmt;
 use std::iter;
@@ -210,7 +211,7 @@ impl Noun {
         } else {
             match self.get() {
                 Shape::Cell(_, ref a) => a.is_wider_than(n - 1),
-                _ => false
+                _ => false,
             }
         }
     }
@@ -505,13 +506,45 @@ impl<T: FromNoun> FromNoun for Vec<T> {
 // convention.
 
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct NockError;
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct NockError(String);
+
+impl fmt::Display for NockError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Error for NockError {
+    fn description(&self) -> &str {
+        &self.0[..]
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        None
+    }
+}
 
 pub type NockResult = Result<Noun, NockError>;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct ParseError;
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.description())
+    }
+}
+
+impl Error for ParseError {
+    fn description(&self) -> &str {
+        "Nock parsing failed"
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        None
+    }
+}
 
 impl str::FromStr for Noun {
     type Err = ParseError;

@@ -58,7 +58,7 @@ pub trait Nock {
                                 formula = q;
                                 continue;
                             }
-                            _ => return Err(NockError),
+                            _ => return Err(NockError(format!("fire"))),
                         }
                     }
 
@@ -82,7 +82,7 @@ pub trait Nock {
                                 Ok(Noun::from(BigUint::from_digits(x).unwrap() +
                                               BigUint::one()))
                             }
-                            _ => Err(NockError),
+                            _ => Err(NockError(format!("bump"))),
                         };
                     }
 
@@ -100,7 +100,7 @@ pub trait Nock {
                                     return Ok(Noun::from(1u32));
                                 }
                             }
-                            _ => return Err(NockError),
+                            _ => return Err(NockError(format!("same"))),
                         };
                     }
 
@@ -116,14 +116,14 @@ pub trait Nock {
                                     } else if x == &1u32.as_digits() {
                                         formula = (*d).clone();
                                     } else {
-                                        return Err(NockError);
+                                        return Err(NockError(format!("if")));
                                     }
                                 }
-                                _ => return Err(NockError),
+                                _ => return Err(NockError(format!("if"))),
                             }
                             continue;
                         } else {
-                            return Err(NockError);
+                            return Err(NockError(format!("if")));
                         }
                     }
 
@@ -137,7 +137,7 @@ pub trait Nock {
                                 formula = (*c).clone();
                                 continue;
                             }
-                            _ => return Err(NockError),
+                            _ => return Err(NockError(format!("compose"))),
                         }
                     }
 
@@ -151,7 +151,7 @@ pub trait Nock {
                                 formula = (*c).clone();
                                 continue;
                             }
-                            _ => return Err(NockError),
+                            _ => return Err(NockError(format!("push"))),
                         }
                     }
 
@@ -172,7 +172,7 @@ pub trait Nock {
 
                                 continue;
                             }
-                            _ => return Err(NockError),
+                            _ => return Err(NockError(format!("call"))),
                         }
                     }
 
@@ -184,13 +184,14 @@ pub trait Nock {
                                 formula = (*c).clone();
                                 continue;
                             }
-                            _ => return Err(NockError),
+                            _ => return Err(NockError(format!("hint"))),
                         }
                     }
 
                     // Unhandled opcode
-                    Some(_) => {
-                        return Err(NockError);
+                    Some(code) => {
+                        return Err(NockError(format!("unknown opcode {}",
+                                                     code)));
                     }
 
                     None => {
@@ -201,12 +202,12 @@ pub trait Nock {
                             let b = try!(self.nock_on(subject, tail.clone()));
                             return Ok(Noun::cell(a, b));
                         } else {
-                            return Err(NockError);
+                            return Err(NockError(format!("autocons")));
                         }
                     }
                 }
             } else {
-                return Err(NockError);
+                return Err(NockError(format!("nock")));
             }
         }
     }
@@ -223,7 +224,7 @@ pub fn get_axis(axis: &Noun, subject: &Noun) -> NockResult {
                     subject = a;
                 }
             } else {
-                return Err(NockError);
+                return Err(NockError(format!("axis")));
             }
         }
         Ok((*subject).clone())
@@ -239,6 +240,6 @@ pub fn get_axis(axis: &Noun, subject: &Noun) -> NockResult {
             let start = msb(x);
             fas(x, start, subject)
         }
-        _ => Err(NockError),
+        _ => Err(NockError(format!("axis"))),
     }
 }
