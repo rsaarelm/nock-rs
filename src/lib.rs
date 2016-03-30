@@ -500,8 +500,6 @@ impl<T: FromNoun> FromNoun for Vec<T> {
 
 // TODO: HashMap conversion.
 
-// TODO: ToNoun for Vec<T: ToNoun>.
-
 // TODO: FromNoun/ToNoun for signed numbers using the Urbit representation
 // convention.
 
