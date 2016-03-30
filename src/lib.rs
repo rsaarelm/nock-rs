@@ -505,7 +505,7 @@ impl<T: FromNoun> FromNoun for Vec<T> {
 
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct NockError(String);
+pub struct NockError(pub String);
 
 impl fmt::Display for NockError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
