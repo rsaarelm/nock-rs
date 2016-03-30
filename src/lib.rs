@@ -361,28 +361,21 @@ impl<T> ToNoun for T
 
 /// A trait for types that can be instantiated from a Nock noun.
 pub trait FromNoun: Sized {
-    /// The associated error.
-    type Err;
-
     /// Try to convert a noun to an instance of the type.
-    fn from_noun(n: &Noun) -> Result<Self, Self::Err>;
+    fn from_noun(n: &Noun) -> Result<Self, NockError>;
 }
 
 impl FromNoun for Noun {
-    type Err = ();
-
-    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+    fn from_noun(n: &Noun) -> Result<Self, NockError> {
         Ok((*n).clone())
     }
 }
 
 impl FromNoun for Rc<Vec<u8>> {
-    type Err = ();
-
-    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+    fn from_noun(n: &Noun) -> Result<Self, NockError> {
         match n.value {
             Inner::Atom(ref v) => Ok(v.clone()),
-            _ => Err(()),
+            _ => Err(NockError(format!("FromNoun Rc<Vec<u8>>"))),
         }
     }
 }
@@ -390,13 +383,19 @@ impl FromNoun for Rc<Vec<u8>> {
 impl<T> FromNoun for T
     where T: FromDigits
 {
-    type Err = ();
-
-    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+    fn from_noun(n: &Noun) -> Result<Self, NockError> {
         match n.get() {
-            Shape::Atom(x) => T::from_digits(x).map_err(|_| ()),
-            _ => Err(()),
+            Shape::Atom(x) => T::from_digits(x).map_err(|_| NockError(format!("FromNoun FromDigits"))),
+            _ => Err(NockError(format!("FromNoun FromDigits"))),
         }
+    }
+}
+
+impl<T> FromNoun for (T,)
+    where T: FromNoun
+{
+    fn from_noun(n: &Noun) -> Result<Self, NockError> {
+        Ok((try!(T::from_noun(n)),))
     }
 }
 
@@ -404,16 +403,14 @@ impl<T, U> FromNoun for (T, U)
     where T: FromNoun,
           U: FromNoun
 {
-    type Err = ();
-
-    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+    fn from_noun(n: &Noun) -> Result<Self, NockError> {
         match n.get() {
             Shape::Cell(a, b) => {
-                let t = try!(T::from_noun(a).map_err(|_| ()));
-                let u = try!(U::from_noun(b).map_err(|_| ()));
+                let t = try!(T::from_noun(a));
+                let u = try!(U::from_noun(b));
                 Ok((t, u))
             }
-            _ => Err(()),
+            _ => Err(NockError(format!("FromNoun (T, U)"))),
         }
     }
 }
@@ -423,30 +420,26 @@ impl<T1, T2, T3> FromNoun for (T1, T2, T3)
           T2: FromNoun,
           T3: FromNoun
 {
-    type Err = ();
-
-    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+    fn from_noun(n: &Noun) -> Result<Self, NockError> {
         match n.get_122() {
             Some((t1, t2, t3)) => {
-                let t1 = try!(T1::from_noun(t1).map_err(|_| ()));
-                let t2 = try!(T2::from_noun(t2).map_err(|_| ()));
-                let t3 = try!(T3::from_noun(t3).map_err(|_| ()));
+                let t1 = try!(T1::from_noun(t1));
+                let t2 = try!(T2::from_noun(t2));
+                let t3 = try!(T3::from_noun(t3));
                 Ok((t1, t2, t3))
             }
-            _ => Err(()),
+            _ => Err(NockError(format!("FromNoun (T, U, V)"))),
         }
     }
 }
 
 impl FromNoun for String {
-    type Err = ();
-
-    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+    fn from_noun(n: &Noun) -> Result<Self, NockError> {
         match n.get() {
             Shape::Atom(bytes) => {
-                String::from_utf8(bytes.to_vec()).map_err(|_| ())
+                String::from_utf8(bytes.to_vec()).map_err(|_| NockError(format!("FromNoun String")))
             }
-            _ => Err(()),
+            _ => Err(NockError(format!("FromNoun String"))),
         }
     }
 }
@@ -458,9 +451,7 @@ impl ToNoun for str {
 }
 
 impl FromNoun for bool {
-    type Err = ();
-
-    fn from_noun(n: &Noun) -> Result<Self, Self::Err> {
+    fn from_noun(n: &Noun) -> Result<Self, NockError> {
         Ok(n.as_u32() == Some(0))
     }
 }
@@ -477,9 +468,7 @@ impl ToNoun for bool {
 
 impl<T: FromNoun> FromNoun for Vec<T> {
     // Use the Urbit convention of 0-terminated list to match Rust vectors.
-    type Err = ();
-
-    fn from_noun(mut n: &Noun) -> Result<Self, Self::Err> {
+    fn from_noun(mut n: &Noun) -> Result<Self, NockError> {
         let mut ret = Vec::new();
 
         loop {
@@ -489,10 +478,10 @@ impl<T: FromNoun> FromNoun for Vec<T> {
             }
 
             if let Shape::Cell(ref head, ref tail) = n.get() {
-                ret.push(try!(T::from_noun(head).map_err(|_| ())));
+                ret.push(try!(T::from_noun(head)));
                 n = tail;
             } else {
-                return Err(());
+                return Err(NockError(format!("FromNoun Vec<T>")));
             }
         }
     }
@@ -862,7 +851,7 @@ mod tests {
     #[test]
     fn test_cord() {
         assert_eq!(String::from_noun(&Noun::from(0u32)), Ok("".to_string()));
-        assert_eq!(String::from_noun(&Noun::from(190u32)), Err(()));
+        assert!(String::from_noun(&Noun::from(190u32)).is_err());
         assert_eq!(String::from_noun(&Noun::from(7303014u32)),
                    Ok("foo".to_string()));
         assert_eq!(String::from_noun(&"quux".to_noun()),
