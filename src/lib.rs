@@ -375,7 +375,7 @@ impl FromNoun for Rc<Vec<u8>> {
     fn from_noun(n: &Noun) -> Result<Self, NockError> {
         match n.value {
             Inner::Atom(ref v) => Ok(v.clone()),
-            _ => Err(NockError(format!("FromNoun Rc<Vec<u8>>"))),
+            _ => Err(NockError(format!("FromNoun Rc<Vec<u8>> not an atom"))),
         }
     }
 }
@@ -395,7 +395,7 @@ impl<T> FromNoun for T
                 T::from_digits(x)
                     .map_err(|_| NockError(format!("FromNoun FromDigits")))
             }
-            _ => Err(NockError(format!("FromNoun FromDigits"))),
+            _ => Err(NockError(format!("FromNoun FromDigits not an atom"))),
         }
     }
 }
@@ -419,7 +419,7 @@ impl<T, U> FromNoun for (T, U)
                 let u = try!(U::from_noun(b));
                 Ok((t, u))
             }
-            _ => Err(NockError(format!("FromNoun (T, U)"))),
+            _ => Err(NockError(format!("FromNoun (T, U) not a cell"))),
         }
     }
 }
@@ -437,7 +437,7 @@ impl<T1, T2, T3> FromNoun for (T1, T2, T3)
                 let t3 = try!(T3::from_noun(t3));
                 Ok((t1, t2, t3))
             }
-            _ => Err(NockError(format!("FromNoun (T, U, V)"))),
+            _ => Err(NockError(format!("FromNoun (T, U, V) not a tuple"))),
         }
     }
 }
@@ -449,7 +449,7 @@ impl FromNoun for String {
                 String::from_utf8(bytes.to_vec())
                     .map_err(|_| NockError(format!("FromNoun String")))
             }
-            _ => Err(NockError(format!("FromNoun String"))),
+            _ => Err(NockError(format!("FromNoun String not an atom"))),
         }
     }
 }
