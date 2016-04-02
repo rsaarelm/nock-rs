@@ -19,7 +19,7 @@ pub trait Nock {
     /// evaluating the formula on the subject with a standard Nock
     /// interpreter.
     #[allow(unused_variables)]
-    fn call(&mut self, subject: &Noun, formula: &Noun) -> Option<Noun> {
+    fn call(&mut self, subject: &Noun, formula: &Noun) -> Option<NockResult> {
         None
     }
 
@@ -167,7 +167,7 @@ pub trait Nock {
 
                                 if let Some(result) = self.call(&subject,
                                                                 &formula) {
-                                    return Ok(result);
+                                    return result;
                                 }
 
                                 continue;
