@@ -380,12 +380,21 @@ impl FromNoun for Rc<Vec<u8>> {
     }
 }
 
+impl ToNoun for Vec<u8> {
+    fn to_noun(&self) -> Noun {
+        Noun::atom(&self[..])
+    }
+}
+
 impl<T> FromNoun for T
     where T: FromDigits
 {
     fn from_noun(n: &Noun) -> Result<Self, NockError> {
         match n.get() {
-            Shape::Atom(x) => T::from_digits(x).map_err(|_| NockError(format!("FromNoun FromDigits"))),
+            Shape::Atom(x) => {
+                T::from_digits(x)
+                    .map_err(|_| NockError(format!("FromNoun FromDigits")))
+            }
             _ => Err(NockError(format!("FromNoun FromDigits"))),
         }
     }
@@ -437,7 +446,8 @@ impl FromNoun for String {
     fn from_noun(n: &Noun) -> Result<Self, NockError> {
         match n.get() {
             Shape::Atom(bytes) => {
-                String::from_utf8(bytes.to_vec()).map_err(|_| NockError(format!("FromNoun String")))
+                String::from_utf8(bytes.to_vec())
+                    .map_err(|_| NockError(format!("FromNoun String")))
             }
             _ => Err(NockError(format!("FromNoun String"))),
         }
