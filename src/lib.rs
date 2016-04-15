@@ -371,6 +371,12 @@ impl FromNoun for Noun {
     }
 }
 
+impl ToNoun for Noun {
+    fn to_noun(&self) -> Noun {
+        (*self).clone()
+    }
+}
+
 impl FromNoun for Rc<Vec<u8>> {
     fn from_noun(n: &Noun) -> Result<Self, NockError> {
         match n.value {
@@ -408,6 +414,14 @@ impl<T> FromNoun for (T,)
     }
 }
 
+impl<T> ToNoun for (T,)
+    where T: ToNoun
+{
+    fn to_noun(&self) -> Noun {
+        self.0.to_noun()
+    }
+}
+
 impl<T, U> FromNoun for (T, U)
     where T: FromNoun,
           U: FromNoun
@@ -421,6 +435,15 @@ impl<T, U> FromNoun for (T, U)
             }
             _ => Err(NockError(format!("FromNoun (T, U) not a cell"))),
         }
+    }
+}
+
+impl<T, U> ToNoun for (T, U)
+    where T: ToNoun,
+          U: ToNoun
+{
+    fn to_noun(&self) -> Noun {
+        Noun::cell(self.0.to_noun(), self.1.to_noun())
     }
 }
 
@@ -439,6 +462,16 @@ impl<T1, T2, T3> FromNoun for (T1, T2, T3)
             }
             _ => Err(NockError(format!("FromNoun (T, U, V) not a tuple"))),
         }
+    }
+}
+
+impl<T1, T2, T3> ToNoun for (T1, T2, T3)
+    where T1: ToNoun,
+          T2: ToNoun,
+          T3: ToNoun
+{
+    fn to_noun(&self) -> Noun {
+        Noun::cell(self.0.to_noun(), Noun::cell(self.1.to_noun(), self.2.to_noun()))
     }
 }
 
