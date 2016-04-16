@@ -1,6 +1,6 @@
 [package]
 name = "nock"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Risto Saarelma <risto.saarelma@iki.fi>"]
 keywords = ["vm"]
 description = "A stateless virtual machine"

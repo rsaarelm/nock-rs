@@ -1,5 +1,16 @@
 # Changes by Release
 
+## 0.4.0 (2016-04-16)
+
+- Nock API is now based on the VM trait with user hooks in calls and
+  hints for implementing a jet system.
+
+- Nouns cache mug hashes that match then ones used in current Urbit.
+
+- More conversion implementations between Rust types and nouns.
+
+- Default noun printer abbreviates large nouns.
+
 ## 0.3.0 (2016-03-21)
 
 - New Noun structure that supports hidden internal features.
