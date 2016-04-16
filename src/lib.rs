@@ -471,7 +471,8 @@ impl<T1, T2, T3> ToNoun for (T1, T2, T3)
           T3: ToNoun
 {
     fn to_noun(&self) -> Noun {
-        Noun::cell(self.0.to_noun(), Noun::cell(self.1.to_noun(), self.2.to_noun()))
+        Noun::cell(self.0.to_noun(),
+                   Noun::cell(self.1.to_noun(), self.2.to_noun()))
     }
 }
 
