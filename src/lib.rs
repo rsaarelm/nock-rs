@@ -96,9 +96,9 @@ pub type NounShape<'a> = Shape<&'a [u8], &'a Noun>;
 
 impl Noun {
     /// Get a shape wrapper for the noun to examine its structure.
-    pub fn get<'a>(&'a self) -> NounShape<'a> {
+    pub fn get(&self) -> NounShape {
         match self.value {
-            Inner::Atom(ref v) => Shape::Atom(&v),
+            Inner::Atom(ref v) => Shape::Atom(v),
             Inner::Cell(ref a, ref b) => Shape::Cell(&*a, &*b),
         }
     }
@@ -109,7 +109,7 @@ impl Noun {
     /// expression being matched. 122 has the leftmost leaf 1 step away from
     /// the root and the two leaves on the right both 2 steps away from the
     /// root.
-    pub fn get_122<'a>(&'a self) -> Option<(&'a Noun, &'a Noun, &'a Noun)> {
+    pub fn get_122(&self) -> Option<(&Noun, &Noun, &Noun)> {
         if let Shape::Cell(ref a, ref b) = self.get() {
             if let Shape::Cell(ref b, ref c) = b.get() {
                 return Some((a, b, c));
@@ -191,8 +191,7 @@ impl Noun {
                     Shape::Cell(ref a, ref b) => {
                         let a = h(*a, memo, f);
                         let b = h(*b, memo, f);
-                        let ret = f(Shape::Cell(a, b));
-                        ret
+                        f(Shape::Cell(a, b))
                     }
                 };
                 memo.insert(key, ret.clone());
@@ -218,7 +217,7 @@ impl Noun {
 
     /// 3-letter abbrevation identifier for noun.
     fn glyph(&self) -> String {
-        let alpha = "abcdefghijklmnopqrstuvwxyz".as_bytes();
+        let alpha = b"abcdefghijklmnopqrstuvwxyz";
         let mut ret = String::new();
         let mut mug = self.mug() as usize;
         for _ in 0..3 {
@@ -275,7 +274,7 @@ impl Noun {
                         Inner::Cell(ref a, ref b) => {
                             try!(a.print(f, abbrev));
                             try!(write!(f, " "));
-                            cur = &b;
+                            cur = b;
                         }
                         Inner::Atom(_) => {
                             try!(cur.print(f, abbrev));
@@ -381,7 +380,7 @@ impl FromNoun for Rc<Vec<u8>> {
     fn from_noun(n: &Noun) -> Result<Self, NockError> {
         match n.value {
             Inner::Atom(ref v) => Ok(v.clone()),
-            _ => Err(NockError(format!("FromNoun Rc<Vec<u8>> not an atom"))),
+            _ => Err(NockError("FromNoun Rc<Vec<u8>> not an atom".to_owned())),
         }
     }
 }
@@ -399,9 +398,9 @@ impl<T> FromNoun for T
         match n.get() {
             Shape::Atom(x) => {
                 T::from_digits(x)
-                    .map_err(|_| NockError(format!("FromNoun FromDigits")))
+                    .map_err(|_| NockError("FromNoun FromDigits".to_owned()))
             }
-            _ => Err(NockError(format!("FromNoun FromDigits not an atom"))),
+            _ => Err(NockError("FromNoun FromDigits not an atom".to_owned())),
         }
     }
 }
@@ -433,7 +432,7 @@ impl<T, U> FromNoun for (T, U)
                 let u = try!(U::from_noun(b));
                 Ok((t, u))
             }
-            _ => Err(NockError(format!("FromNoun (T, U) not a cell"))),
+            _ => Err(NockError("FromNoun (T, U) not a cell".to_owned())),
         }
     }
 }
@@ -460,7 +459,7 @@ impl<T1, T2, T3> FromNoun for (T1, T2, T3)
                 let t3 = try!(T3::from_noun(t3));
                 Ok((t1, t2, t3))
             }
-            _ => Err(NockError(format!("FromNoun (T, U, V) not a tuple"))),
+            _ => Err(NockError("FromNoun (T, U, V) not a tuple".to_owned())),
         }
     }
 }
@@ -481,9 +480,9 @@ impl FromNoun for String {
         match n.get() {
             Shape::Atom(bytes) => {
                 String::from_utf8(bytes.to_vec())
-                    .map_err(|_| NockError(format!("FromNoun String")))
+                    .map_err(|_| NockError("FromNoun String".to_owned()))
             }
-            _ => Err(NockError(format!("FromNoun String not an atom"))),
+            _ => Err(NockError("FromNoun String not an atom".to_owned())),
         }
     }
 }
@@ -525,7 +524,7 @@ impl<T: FromNoun> FromNoun for Vec<T> {
                 ret.push(try!(T::from_noun(head)));
                 n = tail;
             } else {
-                return Err(NockError(format!("FromNoun Vec<T>")));
+                return Err(NockError("FromNoun Vec<T>".to_owned()));
             }
         }
     }
@@ -586,7 +585,7 @@ impl str::FromStr for Noun {
         fn parse<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>)
                                            -> Result<Noun, ParseError> {
             eat_space(input);
-            match input.peek().map(|&x| x) {
+            match input.peek().cloned() {
                 Some(c) if c.is_digit(10) => parse_atom(input),
                 Some(c) if c == '[' => parse_cell(input),
                 _ => Err(ParseError),
@@ -598,31 +597,27 @@ impl str::FromStr for Noun {
                                                 -> Result<Noun, ParseError> {
             let mut buf = Vec::new();
 
-            loop {
-                if let Some(&c) = input.peek() {
-                    if c.is_digit(10) {
-                        input.next();
-                        buf.push(c);
-                    } else if c == '.' {
-                        // Dot is used as a sequence separator (*not* as
-                        // decimal point). It can show up anywhere in the
-                        // digit sequence and will be ignored.
-                        input.next();
-                    } else if c == '[' || c == ']' || c.is_whitespace() {
-                        // Whitespace or cell brackets can terminate the
-                        // digit sequence.
-                        break;
-                    } else {
-                        // Anything else in the middle of the digit sequence
-                        // is an error.
-                        return Err(ParseError);
-                    }
-                } else {
+            while let Some(&c) = input.peek() {
+                if c.is_digit(10) {
+                    input.next();
+                    buf.push(c);
+                } else if c == '.' {
+                    // Dot is used as a sequence separator (*not* as
+                    // decimal point). It can show up anywhere in the
+                    // digit sequence and will be ignored.
+                    input.next();
+                } else if c == '[' || c == ']' || c.is_whitespace() {
+                    // Whitespace or cell brackets can terminate the
+                    // digit sequence.
                     break;
+                } else {
+                    // Anything else in the middle of the digit sequence
+                    // is an error.
+                    return Err(ParseError);
                 }
             }
 
-            if buf.len() == 0 {
+            if buf.is_empty() {
                 return Err(ParseError);
             }
 
@@ -653,7 +648,7 @@ impl str::FromStr for Noun {
             // It can have further trailing nouns.
             loop {
                 eat_space(input);
-                match input.peek().map(|&x| x) {
+                match input.peek().cloned() {
                     Some(c) if c.is_digit(10) => {
                         elts.push(try!(parse_atom(input)))
                     }
@@ -671,7 +666,7 @@ impl str::FromStr for Noun {
 
         fn eat_space<I: Iterator<Item = char>>(input: &mut iter::Peekable<I>) {
             loop {
-                match input.peek().map(|&x| x) {
+                match input.peek().cloned() {
                     Some(c) if c.is_whitespace() => {
                         input.next();
                     }

@@ -1,7 +1,7 @@
 extern crate nock;
 
 use std::default::Default;
-use std::io::{self, BufRead, Write};
+use std::io::{self, Write};
 use nock::{Nock, Noun};
 
 struct VM;

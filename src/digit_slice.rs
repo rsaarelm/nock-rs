@@ -9,7 +9,7 @@ pub trait DigitSlice {
     /// integer value.
     ///
     /// Will fail horribly if your hardware is not little-endian.
-    fn as_digits<'a>(&'a self) -> &'a [u8];
+    fn as_digits(&self) -> &[u8];
 }
 
 /// Types that can be constructed from base-256 integers.
@@ -22,7 +22,7 @@ pub trait FromDigits: Sized {
 
 impl DigitSlice for BigUint {
     #[inline]
-    fn as_digits<'a>(&'a self) -> &'a [u8] {
+    fn as_digits(&self) -> &[u8] {
         let n_bytes = (self.bits() + 7) / 8;
 
         unsafe {
@@ -62,7 +62,7 @@ macro_rules! primitive_impl {
     ($t:ty) => {
         impl DigitSlice for $t {
             #[inline]
-            fn as_digits<'a>(&'a self) -> &'a[u8] {
+            fn as_digits(&self) -> &[u8] {
                 let n_bytes = (mem::size_of::<$t>() * 8 - self.leading_zeros() as usize + 7) / 8;
 
                 unsafe {
@@ -79,8 +79,8 @@ macro_rules! primitive_impl {
             fn from_digits(digits: &[u8]) -> Result<$t, Self::Err> {
                 if digits.len() > mem::size_of::<$t>() { return Err(()); }
                 let mut ret = 0 as $t;
-                for i in 0..digits.len() {
-                    ret |= digits[i] as $t << (i * 8);
+                for (i, &d) in digits.iter().enumerate() {
+                    ret |= d as $t << (i * 8);
                 }
                 Ok(ret)
             }
